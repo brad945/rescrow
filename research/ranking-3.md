@@ -673,3 +673,12 @@ None in the recording. In the live final, about 10 seconds, on `/lab`:
 - **I-206 (live T-accounts):** `/books` already lists each journal entry with its postings, and the phone layout has no room on `/present`.
 - **I-184 (insolvency proof packet):** it rests on the inclusion and consistency proofs rejected above. Pick 2 gives the administrator the same list from the journal, with bank ids.
 - **I-174 (insolvency in three currencies):** it changes the climax screen and needs FX work (I-130) first.
+
+## As built
+
+Where the shipped code differs from this plan:
+
+- **Try to break the books** (`src/lib/escrow/plants.ts`) is a separate catalogue of eleven plants written to work on any demo state; the fixed catalogue in `reconcile.test.ts` stays where it is. None of the eleven calls the engine or reads a clock, so no result depends on the date. The file exports only descriptions (`PLANT_INFO`) and `breakOnCopy`, which clones before running a plant, and an architecture test pins that export surface and an import guard that matches any static or dynamic import.
+- The statement of affairs calls the gallery's part of an open sale a buyer's deposit paid into operating, a claim for the administrator to settle; it is not shown as a second asset. Open sales with nothing paid are listed too.
+- Clicking a balance on `/gallery` opens operating or trust; the drawer compares its rows with the figure that was clicked and shows ✗ if they differ.
+- "Why these rules" names, for each case, a test that a check fails on if it is renamed, and says where Rescrow doesn't reach (liens and pledges, forgery).

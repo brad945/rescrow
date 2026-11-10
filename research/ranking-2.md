@@ -547,3 +547,12 @@ None.
 - **I-204 (insolvency Sankey):** round one's reason stands: medium risk on the climax screen for a point `TrustProof` already makes in one line.
 - **I-015, I-175 and I-188 (hash chains, signed checkpoints, golden hashes):** round one's rejections stand. Pick 4 deliberately seals with counts and totals and states the same limit.
 - **I-017, I-039, I-061, I-105, and I-008 / I-030 / I-031:** round one's safety rejections stand. Each either contradicts Theo's framing clause, changes the narrated split or the $49,836.27 at `B`, or changes the insolvency route the recording uses.
+
+## As built
+
+Where the shipped code differs from this plan:
+
+- `SEED_VERSION` is 4, not 3: seeded sales gained their frozen payout windows after this plan was written, which needed a reseed.
+- The trust tie-out compares the engine's records (locked holds) with the general ledger's 2010, not 1020 with 2010, because those two are written together and couldn't disagree.
+- Deadline payouts are stamped at each share's own `dueBy`, so the artist timeline says "paid on its deadline" rather than "at the deadline check".
+- A payment or a cancellation pays any share already past its deadline first, so a late share is never swept into a completion payout or refunded.
