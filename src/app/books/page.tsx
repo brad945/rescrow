@@ -299,7 +299,7 @@ export default function BooksPage() {
             <div className="grid gap-5 text-[13px] md:grid-cols-2">
               <div>
                 <h3 className="mb-1 font-semibold text-trust">
-                  Never the gallery&apos;s
+                  Paid out of trust, not into the estate
                 </h3>
                 <ul className="space-y-1">
                   {affairs.trustPaidOut.map((t) => (
@@ -315,7 +315,7 @@ export default function BooksPage() {
                   ))}
                   {affairs.outcome.worksReturned.map((w) => (
                     <li key={w.artworkId} className="text-muted">
-                      {w.title} returned to {name(w.artistId)}
+                      {w.title} recorded as returned to {name(w.artistId)}
                     </li>
                   ))}
                 </ul>
@@ -327,10 +327,11 @@ export default function BooksPage() {
                     <span>Operating cash turned over to the administrator</span>
                     <Money cents={affairs.estateCashCents} />
                   </li>
-                  <li className="flex justify-between gap-3">
+                  <li className="flex justify-between gap-3 pl-4 text-muted">
                     <span>
-                      Buyers&apos; deposits (the gallery&apos;s part of what
-                      they paid)
+                      Buyers&apos; deposits on sales that hadn&apos;t completed,
+                      paid into operating: a claim on the estate for the
+                      administrator to settle, not a second asset
                     </span>
                     <Money cents={affairs.buyerClaimsCents} />
                   </li>
@@ -352,7 +353,8 @@ export default function BooksPage() {
                       To artist from trust at failure
                     </th>
                     <th className="py-1.5 text-right font-medium">
-                      Gallery&apos;s part, held as the buyer&apos;s deposit
+                      Gallery&apos;s part (a buyer deposit, now with the
+                      administrator)
                     </th>
                   </tr>
                 </thead>

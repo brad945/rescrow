@@ -207,3 +207,24 @@ describe("artistAtFailure", () => {
     expect(viaTimeline).toBe(800_000);
   });
 });
+
+describe("an open sale with nothing paid yet, at the failure", () => {
+  it("is listed under open sales and on the artist's failure card", () => {
+    const c = clock();
+    let s = storyAfterTwoPayments(c);
+    s = createSale(
+      s,
+      { artworkId: "wrk_salt", buyerName: "Y", installments: 2 },
+      c,
+    ).snapshot;
+    s = declareInsolvency(s, { galleryId: G }, c).snapshot;
+    const salt = statementOfAffairs(s, G)!.openSales.find(
+      (r) => r.workTitle === "Salt Study No. 4",
+    )!;
+    expect(salt).toMatchObject({ paidCents: 0, buyerClaimCents: 0 });
+    const mara = artistAtFailure(s, "art_mara")!;
+    expect(mara.worksUnderOpenSale.map((w) => w.workTitle)).toEqual([
+      "Salt Study No. 4",
+    ]);
+  });
+});

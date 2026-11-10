@@ -10,7 +10,8 @@ export interface TestRef {
 
 export interface CaseRow {
   name: string;
-  year: number;
+  /** The year or years reported, as the sources give them. */
+  year: string;
   status: "reported" | "alleged" | "out_of_scope";
   what: string;
   source: string;
@@ -21,7 +22,7 @@ export interface CaseRow {
 export const CASES: CaseRow[] = [
   {
     name: "Stephen Friedman Gallery, London",
-    year: 2026,
+    year: "2026",
     status: "reported",
     what: "Administration owing artists over £800k; unsecured creditors expect 8 to 9p per pound (reported filings)",
     source:
@@ -35,7 +36,7 @@ export const CASES: CaseRow[] = [
   },
   {
     name: "The Hole, New York",
-    year: 2026,
+    year: "2026",
     status: "alleged",
     what: "Artists allege unpaid proceeds were spent on rent, operating expenses and other creditors",
     source: "https://www.amny.com/law/artists-sue-the-hole-bowery-theft-pay/",
@@ -47,7 +48,7 @@ export const CASES: CaseRow[] = [
   },
   {
     name: "Cadence Comic Art",
-    year: 2025,
+    year: "2025",
     status: "alleged",
     what: "Artists alleged proceeds were never remitted and were commingled (settled)",
     source:
@@ -60,7 +61,7 @@ export const CASES: CaseRow[] = [
   },
   {
     name: "Salander-O'Reilly; Inigo Philbrick",
-    year: 2019,
+    year: "2007, 2019",
     status: "reported",
     what: "Works sold that the dealer didn't own, or sold more than once (guilty plea; conviction)",
     source:
@@ -73,12 +74,12 @@ export const CASES: CaseRow[] = [
   },
   {
     name: "Berry-Hill Galleries",
-    year: 2005,
+    year: "2005",
     status: "reported",
     what: "Pledged its art, including consigned works, to a lender (chapter 11)",
     source:
       "https://www.theartnewspaper.com/archive/debt-and-legal-troubles-force-berry-hill-galleries-to-file-for-bankruptcy",
-    rule: "At insolvency, unsold consigned works go back to their artists, not into the estate",
+    rule: "Unsold consigned works are recorded as returned to their artists at insolvency. Rescrow doesn't model liens or pledges, so it can't stop one, and a court may still let an administrator sell a consigned work (as one did in Salander's case)",
     test: {
       file: "src/app/api/demo-flow.test.ts",
       title: "gallery goes under after payment two: the narrated numbers",
@@ -86,7 +87,7 @@ export const CASES: CaseRow[] = [
   },
   {
     name: "Gibson v. Kavi Gupta; Odita v. Jack Shainman",
-    year: 2023,
+    year: "2023, 2025",
     status: "alleged",
     what: "Disputes over deductions, offsets of advances and a stipend deficit (allegations on both sides)",
     source:
@@ -94,12 +95,12 @@ export const CASES: CaseRow[] = [
     rule: "Trust only pays the artist or refunds the buyer, so an offset can't come out of it. Clause-gated deductions are not built",
     test: {
       file: "src/lib/escrow/journal.test.ts",
-      title: "a buyer refund can't pay another artist",
+      title: "trust to operating, by any code",
     },
   },
   {
     name: "Knoedler",
-    year: 2011,
+    year: "2011",
     status: "out_of_scope",
     what: "Sold forgeries. A problem of authenticity, not of where money went",
     source:
@@ -126,7 +127,7 @@ export const LIMITS: LimitRow[] = [
   },
   {
     proves: true,
-    text: "Only one function can change a share in trust, and it can only pay the artist or refund the buyer",
+    text: "Only one function can change a share in trust, and it can only pay the artist or refund the buyer (the /lab catalogue of ways to cheat runs only on copies, and can't be imported anywhere else)",
     test: {
       file: "src/lib/escrow/architecture.test.ts",
       title: "hold status changes happen in transition() and nowhere else",

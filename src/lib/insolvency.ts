@@ -11,7 +11,7 @@
 import type { Cents, Id, Snapshot } from "@/types";
 
 export const TRUST_STATUTE =
-  "NY Arts and Cultural Affairs Law §12.01: proceeds from a consigned work are trust funds for the artist, not subject to claims of the gallery's creditors.";
+  "NY Arts and Cultural Affairs Law §12.01: proceeds from a consigned work are trust funds for the artist, not subject to claims of the gallery's creditors, unless the artist waived that in writing (and even then the first $2,500 a year stays protected).";
 
 export interface InsolvencyOutcome {
   toCreditorsCents: Cents;
@@ -140,8 +140,7 @@ export function statementOfAffairs(
         paidAtFailureCents: by("insolvency"),
         buyerClaimCents: paidCents - artistPart,
       };
-    })
-    .filter((r) => r.paidCents > 0);
+    });
   return {
     outcome,
     trustPaidOut,
