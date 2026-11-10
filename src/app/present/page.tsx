@@ -153,7 +153,7 @@ export default function PresentPage() {
                       disabled={busy}
                       className="rounded border border-line bg-card px-3 py-2 text-sm text-muted hover:text-danger disabled:opacity-40"
                     >
-                      Gallery goes under <kbd className="num text-faint">I</kbd>
+                      Gallery goes under <kbd className="num text-faint">B</kbd>
                     </button>
                   )}
                   {step.canCancel && (
