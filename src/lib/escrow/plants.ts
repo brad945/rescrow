@@ -12,7 +12,7 @@
 import type { EscrowHold, Reconciliation, Snapshot } from "@/types";
 import { reconcile } from "./reconcile";
 
-export interface Plant {
+interface Plant {
   id: string;
   name: string;
   /** null if the plant applies to this snapshot, else why it doesn't. */
@@ -39,7 +39,7 @@ function pairOnOneSale(
   return null;
 }
 
-export const PLANTS: Plant[] = [
+const PLANTS: Plant[] = [
   {
     id: "shift-cent",
     name: "Move one cent between two of an artist's shares (every total still matches)",
@@ -181,6 +181,16 @@ export const PLANTS: Plant[] = [
     expect: /Books closed for .* the journal now shows/,
   },
 ];
+
+/**
+ * What /lab may see of each plant: its name, when it applies and what must
+ * catch it. The corrupting function itself is never exported, so the only way
+ * to run a plant is breakOnCopy, which clones first.
+ */
+export type PlantInfo = Pick<Plant, "id" | "name" | "when" | "expect">;
+export const PLANT_INFO: PlantInfo[] = PLANTS.map(
+  ({ id, name, when, expect }) => ({ id, name, when, expect }),
+);
 
 export interface BreakResult {
   before: Reconciliation;

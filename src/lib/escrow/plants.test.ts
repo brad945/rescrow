@@ -12,7 +12,7 @@ import {
   receivePayment,
   type Clock,
 } from "./engine";
-import { breakOnCopy, PLANTS } from "./plants";
+import { breakOnCopy, PLANT_INFO } from "./plants";
 
 const G = "gal_lowline";
 let n = 0;
@@ -79,7 +79,7 @@ describe("try to break the books", () => {
   it("every applicable plant is caught in every demo state, and the input is untouched", () => {
     for (const [name, s] of states) {
       const before = structuredClone(s);
-      for (const p of PLANTS) {
+      for (const p of PLANT_INFO) {
         const r = breakOnCopy(s, G, p.id);
         if (p.when(s, G)) {
           expect(r.after, `${p.id} in ${name}`).toBeNull();
@@ -97,7 +97,7 @@ describe("try to break the books", () => {
   });
 
   it("every plant applies in at least one demo state", () => {
-    for (const p of PLANTS) {
+    for (const p of PLANT_INFO) {
       expect(
         states.some(([, s]) => p.when(s, G) === null),
         `${p.id} never applies`,

@@ -196,12 +196,30 @@ describe("architecture: transition() is called from releaseTrust only", () => {
 });
 
 describe("architecture: the plants never reach real books", () => {
-  it("only the /lab component imports plants.ts", () => {
+  it("only the /lab component imports plants.ts, by any path or form", () => {
+    // Static or dynamic, alias or relative, with or without an extension.
+    const IMPORT = /(?:from\s*|import\s*\(\s*)["'][^"']*\bplants(?:\.ts)?["']/;
     const importers = files(SRC)
-      .filter((f) =>
-        /from "(\.\/|@\/lib\/escrow\/)plants"/.test(fs.readFileSync(f, "utf8")),
-      )
+      .filter((f) => !f.endsWith("plants.ts"))
+      .filter((f) => IMPORT.test(fs.readFileSync(f, "utf8")))
       .map((f) => path.relative(SRC, f));
     expect(importers).toEqual(["components/BreakTheBooks.tsx"]);
+  });
+
+  it("plants.ts exports no function that corrupts a snapshot in place", () => {
+    const text = fs.readFileSync(
+      path.join(SRC, "lib/escrow/plants.ts"),
+      "utf8",
+    );
+    const exported = [
+      ...text.matchAll(/^export (?:const|function|type|interface) (\w+)/gm),
+    ].map((m) => m[1]);
+    expect(exported.sort()).toEqual(
+      ["BreakResult", "PLANT_INFO", "PlantInfo", "breakOnCopy"].sort(),
+    );
+    // breakOnCopy clones before any plant runs.
+    expect(text).toMatch(
+      /const copy = structuredClone\(s\);\s*plant\.plant\(copy/,
+    );
   });
 });

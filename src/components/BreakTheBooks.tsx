@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { breakOnCopy, PLANTS, type BreakResult } from "@/lib/escrow/plants";
+import { breakOnCopy, PLANT_INFO, type BreakResult } from "@/lib/escrow/plants";
 import { GALLERY } from "@/components/story";
 import { useSnapshot } from "@/components/useSnapshot";
 
@@ -13,7 +13,10 @@ import { useSnapshot } from "@/components/useSnapshot";
 export function BreakTheBooks() {
   const { snapshot } = useSnapshot();
   const [picked, setPicked] = useState<string | null>(null);
-  const [result, setResult] = useState<BreakResult | null>(null);
+  // Recomputed from the latest snapshot on every render, so the result always
+  // describes the books as they are now.
+  const result: BreakResult | null =
+    snapshot && picked ? breakOnCopy(snapshot, GALLERY, picked) : null;
 
   return (
     <section className="rounded-md border border-line bg-card p-4">
@@ -28,17 +31,14 @@ export function BreakTheBooks() {
       ) : (
         <div className="mt-3 grid gap-4 md:grid-cols-[1fr_1.2fr]">
           <ul className="space-y-1.5">
-            {PLANTS.map((p) => {
+            {PLANT_INFO.map((p) => {
               const why = p.when(snapshot, GALLERY);
               return (
                 <li key={p.id}>
                   <button
                     type="button"
                     disabled={!!why}
-                    onClick={() => {
-                      setPicked(p.id);
-                      setResult(breakOnCopy(snapshot, GALLERY, p.id));
-                    }}
+                    onClick={() => setPicked(p.id)}
                     className={`w-full rounded border px-2.5 py-1.5 text-left text-[12px] disabled:opacity-40 ${picked === p.id ? "border-ink/40 bg-row" : "border-line"}`}
                   >
                     {p.name}
