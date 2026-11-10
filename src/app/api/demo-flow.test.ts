@@ -184,6 +184,11 @@ describe("the recorded demo, end to end", () => {
     expect(s.payouts.find((p) => p.artistId === "art_ines")!.reason).toBe(
       "deadline",
     );
+    // Each deadline payout is stamped at its own deadline, not at the jump.
+    for (const p of s.payouts.filter((x) => x.reason === "deadline")) {
+      const holds = s.holds.filter((h) => p.holdIds.includes(h.id));
+      for (const h of holds) expect(p.paidAt).toBe(h.dueBy);
+    }
     // Theo's 14-day seeded share falls due inside the jump as well.
     expect(
       s.payouts.some(

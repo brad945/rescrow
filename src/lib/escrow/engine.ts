@@ -466,11 +466,21 @@ export function releaseDueHolds(
     Date.parse(h.dueBy) <= now;
   if (!input.holds.some(due)) return input;
   const s = structuredClone(input);
-  for (const group of groupBySale(s.holds.filter(due))) {
+  // Pay in deadline order, each share stamped at its own deadline: the
+  // payout is due then, whether the check runs a second later (a poll) or
+  // the demo clock jumped weeks past it. One payout per sale per deadline.
+  const groups = new Map<string, EscrowHold[]>();
+  for (const h of s.holds.filter(due)) {
+    const key = `${h.dueBy}|${h.saleId}`;
+    groups.set(key, [...(groups.get(key) ?? []), h]);
+  }
+  for (const key of [...groups.keys()].sort()) {
+    const group = groups.get(key)!;
+    const at = group[0].dueBy!;
     payOut(
       s,
       group,
-      clock,
+      { now: () => at, id: clock.id },
       "deadline_payout",
       ", on the deadline in the agreement",
       "deadline",
