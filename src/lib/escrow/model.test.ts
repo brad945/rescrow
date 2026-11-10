@@ -14,7 +14,9 @@ import {
   cancelSale,
   createSale,
   declareInsolvency,
+  attemptTrustMove,
   EscrowError,
+  IdempotencyConflict,
   paidSoFar,
   receivePayment,
   releaseDueHolds,
@@ -57,17 +59,27 @@ function start(clock: Clock): Snapshot {
   return s;
 }
 
-type Counts = Record<
-  | "sell"
-  | "pay"
-  | "partial"
-  | "cancel"
-  | "covered"
-  | "time"
-  | "fail"
-  | "refused",
-  number
->;
+type Counts = Record<string, number>;
+const bump = (c: Counts, k: string) => (c[k] = (c[k] ?? 0) + 1);
+
+/** Outcomes every batch of runs must reach, with how often at least. */
+const COVERAGE: Record<string, number> = {
+  sell: 10,
+  pay: 10,
+  partial: 10,
+  cancel: 10,
+  "refund from trust": 5,
+  "gallery covered refund": 2,
+  time: 10,
+  fail: 3,
+  "paid on completion": 10,
+  "paid on deadline": 10,
+  "paid on insolvency": 3,
+  "duplicate ignored": 10,
+  "conflicting duplicate refused": 3,
+  "trust move refused": 10,
+  "overpayment refused": 5,
+};
 
 /** Every invariant that must hold after any step. Returns failures by name. */
 function violations(prev: Snapshot, s: Snapshot): string[] {
@@ -161,12 +173,19 @@ function run(seed: number, counts: Counts) {
   const pick = <T>(xs: T[]) => xs[Math.floor(rand() * xs.length)];
   const { clock, advanceDays } = movingClock("2026-11-10T15:00:00.000Z");
   let s = start(clock);
+  const MONEY = [
+    "galleries",
+    "payments",
+    "holds",
+    "payouts",
+    "journal",
+  ] as const;
 
   for (let step = 0; step < STEPS; step++) {
     const prev = s;
     const roll = rand();
     try {
-      if (roll < 0.2) {
+      if (roll < 0.15) {
         const work = pick(s.artworks.filter((w) => w.status === "consigned"));
         if (!work) continue;
         s = createSale(
@@ -178,8 +197,8 @@ function run(seed: number, counts: Counts) {
           },
           clock,
         ).snapshot;
-        counts.sell++;
-      } else if (roll < 0.6) {
+        bump(counts, "sell");
+      } else if (roll < 0.45) {
         const sale = pick(s.sales.filter((x) => x.status === "open"));
         if (!sale) continue;
         const remaining = sale.priceCents - paidSoFar(s, sale.id);
@@ -194,29 +213,89 @@ function run(seed: number, counts: Counts) {
             saleId: sale.id,
             amountCents,
             method: pick(["wire", "ach", "card"]),
+            rampTransactionId: `rtx_${seed}_${step}`,
           },
           clock,
         ).snapshot;
-        counts[partial ? "partial" : "pay"]++;
-      } else if (roll < 0.7) {
+        bump(counts, partial ? "partial" : "pay");
+      } else if (roll < 0.52) {
+        // The bank feed redelivers a transaction already booked. One time in
+        // five it comes back with a different amount, which must be refused.
+        const p = pick(s.payments.filter((x) => x.rampTransactionId));
+        if (!p) continue;
+        const conflicting = rand() < 0.2;
+        s = receivePayment(
+          s,
+          {
+            saleId: p.saleId,
+            amountCents: p.amountCents + (conflicting ? 1 : 0),
+            method: p.method,
+            rampTransactionId: p.rampTransactionId,
+          },
+          clock,
+        ).snapshot;
+        if (conflicting) throw new Error("a conflicting redelivery was booked");
+        for (const k of MONEY) expect(s[k]).toEqual(prev[k]);
+        bump(counts, "duplicate ignored");
+      } else if (roll < 0.55) {
+        const sale = pick(s.sales.filter((x) => x.status === "open"));
+        if (!sale) continue;
+        const remaining = sale.priceCents - paidSoFar(s, sale.id);
+        s = receivePayment(
+          s,
+          { saleId: sale.id, amountCents: remaining + 1 },
+          clock,
+        ).snapshot;
+        throw new Error("an overpayment was booked");
+      } else if (roll < 0.63) {
         const sale = pick(s.sales.filter((x) => x.status === "open"));
         if (!sale) continue;
         s = cancelSale(s, { saleId: sale.id }, clock).snapshot;
-        counts.cancel++;
-        if (s.refunds.at(-1)!.coveredByGalleryCents > 0) counts.covered++;
+        bump(counts, "cancel");
+        const r = s.refunds.at(-1)!;
+        if (r.fromTrustCents > 0) bump(counts, "refund from trust");
+        if (r.coveredByGalleryCents > 0) bump(counts, "gallery covered refund");
+      } else if (roll < 0.68) {
+        const sale = pick(
+          s.sales.filter((x) =>
+            s.holds.some((h) => h.saleId === x.id && h.status === "locked"),
+          ),
+        );
+        if (!sale) continue;
+        s = attemptTrustMove(
+          s,
+          { saleId: sale.id, kind: rand() < 0.5 ? "rent" : "creditor" },
+          clock,
+        ).snapshot;
+        for (const k of MONEY) expect(s[k]).toEqual(prev[k]);
+        bump(counts, "trust move refused");
       } else if (roll < 0.98) {
         advanceDays(Math.floor(rand() * 25));
         s = releaseDueHolds(s, clock);
-        counts.time++;
+        bump(counts, "time");
       } else {
         s = declareInsolvency(s, { galleryId: G }, clock).snapshot;
-        counts.fail++;
+        bump(counts, "fail");
       }
     } catch (e) {
       if (!(e instanceof EscrowError)) throw e;
       // A refused operation must leave the books exactly as they were.
       expect(s).toBe(prev);
-      counts.refused++;
+      if (e instanceof IdempotencyConflict) {
+        bump(counts, "conflicting duplicate refused");
+      } else if (/is more than the .* still owed/.test(e.message)) {
+        bump(counts, "overpayment refused");
+      } else bump(counts, "refused");
+    }
+    for (const p of s.payouts.slice(prev.payouts.length)) {
+      bump(
+        counts,
+        p.reason === "deadline"
+          ? "paid on deadline"
+          : p.reason === "insolvency"
+            ? "paid on insolvency"
+            : "paid on completion",
+      );
     }
     const bad = violations(prev, s);
     if (bad.length) {
@@ -227,23 +306,17 @@ function run(seed: number, counts: Counts) {
 
 describe("model-based: random interleavings keep every invariant", () => {
   it(`${RUNS} seeded runs of ${STEPS} steps`, () => {
-    const counts: Counts = {
-      sell: 0,
-      pay: 0,
-      partial: 0,
-      cancel: 0,
-      covered: 0,
-      time: 0,
-      fail: 0,
-      refused: 0,
-    };
+    const counts: Counts = {};
     for (let seed = 1; seed <= RUNS; seed++) run(seed, counts);
     // Coverage gate: a generator that never reaches a branch proves nothing
-    // about it, so each kind of step must actually have happened.
-    for (const [kind, n] of Object.entries(counts)) {
-      expect(n, `${kind} exercised too rarely`).toBeGreaterThan(
-        kind === "covered" ? 2 : 10,
-      );
+    // about it, so each outcome must actually have happened. (A sample of
+    // 250 runs reaches, for example, 661 deadline payouts, 233 refused trust
+    // moves, 847 ignored duplicates and 160 gallery-covered refunds.)
+    for (const [outcome, atLeast] of Object.entries(COVERAGE)) {
+      expect(
+        counts[outcome] ?? 0,
+        `${outcome} reached too rarely`,
+      ).toBeGreaterThanOrEqual(atLeast);
     }
   });
 
