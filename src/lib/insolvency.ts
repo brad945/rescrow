@@ -58,3 +58,95 @@ export function insolvencyOutcome(
     artistsShareOfCommingledCents,
   };
 }
+
+export interface OpenSaleRow {
+  saleId: Id;
+  artistId: Id;
+  buyerName: string;
+  workTitle: string;
+  paidCents: Cents;
+  /** Artist's share already paid on its agreement deadline, before the failure. */
+  paidOnDeadlineCents: Cents;
+  /** Artist's share paid out of trust at the failure. */
+  paidAtFailureCents: Cents;
+  /** The gallery's part of what the buyer paid: the buyer's claim on the estate. */
+  buyerClaimCents: Cents;
+}
+
+export interface StatementOfAffairs {
+  outcome: InsolvencyOutcome;
+  /** Paid from trust at the failure, with the bank transactions that funded it. */
+  trustPaidOut: {
+    artistId: Id;
+    amountCents: Cents;
+    payoutId: Id;
+    paymentIds: Id[];
+    bankIds: string[];
+  }[];
+  openSales: OpenSaleRow[];
+  estateCashCents: Cents;
+  buyerClaimsCents: Cents;
+}
+
+/**
+ * The administrator's statement, from the records: what was never part of
+ * the estate (trust paid to artists, works returned), the estate (operating
+ * cash, buyers' claims), and every open sale's money split by where it went.
+ * The split is by each payout's recorded reason, not by date.
+ */
+export function statementOfAffairs(
+  s: Snapshot,
+  galleryId: Id,
+): StatementOfAffairs | null {
+  const outcome = insolvencyOutcome(s, galleryId);
+  if (!outcome) return null;
+  const payoutOf = (holdId: Id) =>
+    s.payouts.find((p) => p.holdIds.includes(holdId));
+  const trustPaidOut = outcome.toArtists.map((a) => {
+    const payout = s.payouts.find((p) => p.id === a.payoutId)!;
+    const payments = payout.holdIds
+      .map((h) => s.holds.find((x) => x.id === h)?.paymentId)
+      .map((pid) => s.payments.find((p) => p.id === pid))
+      .filter((p) => p !== undefined);
+    return {
+      ...a,
+      paymentIds: payments.map((p) => p.id),
+      bankIds: payments.map((p) => p.rampTransactionId ?? "").filter(Boolean),
+    };
+  });
+  const openSales = s.sales
+    .filter((x) => x.galleryId === galleryId && x.status === "open")
+    .map((sale) => {
+      const holds = s.holds.filter((h) => h.saleId === sale.id);
+      const paidCents = s.payments
+        .filter((p) => p.saleId === sale.id)
+        .reduce((t, p) => t + p.amountCents, 0);
+      const by = (reason: string) =>
+        holds
+          .filter(
+            (h) => h.status === "paid" && payoutOf(h.id)?.reason === reason,
+          )
+          .reduce((t, h) => t + h.amountCents, 0);
+      const artistPart = holds.reduce((t, h) => t + h.amountCents, 0);
+      return {
+        saleId: sale.id,
+        artistId: sale.artistId,
+        buyerName: sale.buyerName,
+        workTitle:
+          s.artworks.find((w) => w.id === sale.artworkId)?.title ??
+          sale.artworkId,
+        paidCents,
+        paidOnDeadlineCents: by("deadline"),
+        paidAtFailureCents: by("insolvency"),
+        buyerClaimCents: paidCents - artistPart,
+      };
+    })
+    .filter((r) => r.paidCents > 0);
+  return {
+    outcome,
+    trustPaidOut,
+    openSales,
+    estateCashCents: outcome.toCreditorsCents,
+    buyerClaimsCents: openSales.reduce((t, r) => t + r.buyerClaimCents, 0),
+  };
+}

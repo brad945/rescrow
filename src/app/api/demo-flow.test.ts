@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Snapshot } from "@/types";
 import { stepFor } from "@/components/story";
 import { reconcile } from "@/lib/escrow/reconcile";
-import { insolvencyOutcome } from "@/lib/insolvency";
+import { insolvencyOutcome, statementOfAffairs } from "@/lib/insolvency";
 import { POST as readAgreement } from "./agent/read/route";
 import { POST as advance } from "./demo/advance/route";
 import { POST as attempt } from "./demo/attempt/route";
@@ -111,6 +111,9 @@ describe("the recorded demo, end to end", () => {
     // The counterfactual on screen: operating plus trust just before B.
     expect(insolvencyOutcome(s, "gal_lowline")!.commingledCents).toBe(
       before.operatingCents + before.trustCents,
+    );
+    expect(statementOfAffairs(s, "gal_lowline")!.buyerClaimsCents).toBe(
+      960_000,
     );
 
     const g = s.galleries.find((x) => x.id === "gal_lowline")!;
