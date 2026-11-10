@@ -226,7 +226,9 @@ export function trialBalance(lines: GlLine[]): {
 }
 
 export interface TieOut {
+  /** Restricted trust cash per the engine's records: the shares it holds. */
   restrictedCashCents: Cents;
+  /** Due to artists per the general ledger, built from the journal. */
   dueToArtistsCents: Cents;
   perArtist: {
     artistId: Id;
@@ -240,50 +242,50 @@ export interface TieOut {
 }
 
 /**
- * The balance-sheet identity an accountant can check: restricted trust cash
- * equals what is owed to artists, in total and artist by artist, and each
- * artist's sub-ledger equals their locked holds in the engine's records.
+ * The balance-sheet check an accountant would make, from two independent
+ * sources: restricted trust cash as the engine's records hold it (its locked
+ * shares) against what the general ledger, built from the journal, says is
+ * due to artists. In total and artist by artist. (Within the GL itself, 1020
+ * and 2010 move together by construction, so comparing them to each other
+ * would prove nothing.)
  */
 export function trustTieOut(s: Snapshot, galleryId: Id): TieOut {
   const lines = glLines(s, galleryId);
-  const bal = (code: string, artistId?: Id) =>
+  const owed = (artistId?: Id) =>
     lines
       .filter(
         (l) =>
-          l.account === code &&
+          l.account === "2010" &&
           (artistId === undefined || l.artistId === artistId),
       )
-      .reduce(
-        (t, l) =>
-          t +
-          (CHART[code].normal === "debit"
-            ? l.debitCents - l.creditCents
-            : l.creditCents - l.debitCents),
-        0,
-      );
-  const restrictedCashCents = bal("1020");
-  const dueToArtistsCents = bal("2010");
+      .reduce((t, l) => t + l.creditCents - l.debitCents, 0);
+  const locked = (artistId?: Id) =>
+    s.holds
+      .filter(
+        (h) =>
+          h.galleryId === galleryId &&
+          h.status === "locked" &&
+          (artistId === undefined || h.artistId === artistId),
+      )
+      .reduce((t, h) => t + h.amountCents, 0);
+  const restrictedCashCents = locked();
+  const dueToArtistsCents = owed();
   const artists = new Set([
     ...lines.filter((l) => l.artistId).map((l) => l.artistId!),
     ...s.holds.filter((h) => h.galleryId === galleryId).map((h) => h.artistId),
   ]);
   const perArtist = [...artists].sort().map((artistId) => {
-    const owedCents = bal("2010", artistId);
-    const lockedCents = s.holds
-      .filter(
-        (h) =>
-          h.galleryId === galleryId &&
-          h.artistId === artistId &&
-          h.status === "locked",
-      )
-      .reduce((t, h) => t + h.amountCents, 0);
+    const owedCents = owed(artistId);
+    const lockedCents = locked(artistId);
     return { artistId, owedCents, lockedCents, ok: owedCents === lockedCents };
   });
   const ok =
     restrictedCashCents === dueToArtistsCents && perArtist.every((a) => a.ok);
   const coverageBps =
     dueToArtistsCents === 0
-      ? 10_000
+      ? restrictedCashCents === 0
+        ? 10_000
+        : 0
       : Math.floor((restrictedCashCents * 10_000) / dueToArtistsCents);
   return { restrictedCashCents, dueToArtistsCents, perArtist, ok, coverageBps };
 }
@@ -448,6 +450,6 @@ export function accountLabel(k: AccountKind): string {
 
 export function describeTieOut(t: TieOut): string {
   return t.ok
-    ? `Trust covered ${(t.coverageBps / 100).toFixed(2)}%: restricted cash ${formatCents(t.restrictedCashCents)} = due to artists ${formatCents(t.dueToArtistsCents)}`
-    : `Trust does not tie out: restricted cash ${formatCents(t.restrictedCashCents)}, due to artists ${formatCents(t.dueToArtistsCents)}`;
+    ? `Trust covered ${(t.coverageBps / 100).toFixed(2)}%: held in trust ${formatCents(t.restrictedCashCents)} = due to artists in the ledger ${formatCents(t.dueToArtistsCents)}`
+    : `Trust does not tie out: held in trust ${formatCents(t.restrictedCashCents)}, due to artists in the ledger ${formatCents(t.dueToArtistsCents)} (${(t.coverageBps / 100).toFixed(2)}% covered)`;
 }

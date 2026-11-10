@@ -124,6 +124,16 @@ describe("books: general ledger from the journal", () => {
     expect(row("5010")).toBeGreaterThan(0);
   });
 
+  it("a hold edited in the records, but not in the journal, breaks the tie-out and the coverage", () => {
+    const s = structuredClone(steps[4]);
+    const h = s.holds.find((x) => x.status === "locked")!;
+    h.amountCents -= 100;
+    const t = trustTieOut(s, G);
+    expect(t.ok).toBe(false);
+    expect(t.restrictedCashCents).toBe(t.dueToArtistsCents - 100);
+    expect(t.coverageBps).toBeLessThan(10_000);
+  });
+
   it("a planted extra cent in trust breaks the tie-out", () => {
     const s = structuredClone(steps[3]);
     s.journal[s.journal.length - 1].postings.find((p) =>
