@@ -363,7 +363,9 @@ export function receivePayment(
     if (seen) return redelivered(input, seen, args, clock);
   }
 
-  const s = structuredClone(input);
+  // A share already past its deadline is paid to the artist before a new
+  // payment is booked, exactly as the next poll would have done.
+  const s = structuredClone(releaseDueHolds(input, clock));
   const sale = find(s.sales, args.saleId, "Sale");
   assertActive(find(s.galleries, sale.galleryId, "Gallery"));
   if (sale.status !== "open") {

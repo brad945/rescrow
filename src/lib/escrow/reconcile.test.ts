@@ -224,6 +224,24 @@ const PLANTS: [string, (s: Snapshot) => void, RegExp][] = [
     /Payout po_tidewater is \$9,000\.01 but its holds total \$9,000\.00/,
   ],
   [
+    "two receipt entries edited to offset each other (every balance unchanged)",
+    (s) => {
+      const [a, b] = s.journal.filter(
+        (e) =>
+          e.code === "RECEIPT_SPLIT" &&
+          e.postings.some((p) => p.account.endsWith("art_ines")),
+      );
+      const shift = (e: typeof a, cents: number) => {
+        e.postings.find((p) => p.account.startsWith("operating:"))!.cents -=
+          cents;
+        e.postings.find((p) => p.account.startsWith("trust:"))!.cents += cents;
+      };
+      shift(a, 100);
+      shift(b, -100);
+    },
+    /Journal entry .* doesn't match payment/,
+  ],
+  [
     "the opening balance is missing",
     (s) => void delete gallery(s).openingBalanceCents,
     /No opening balance on record/,

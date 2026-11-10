@@ -371,3 +371,18 @@ describe("cancel after a deadline has passed, before anything polled", () => {
     );
   });
 });
+
+describe("a payment after a deadline nobody polled", () => {
+  it("pays the overdue share on its deadline first, then books the payment", () => {
+    const clock = clockAt("2026-11-10T15:00:00.000Z");
+    const { s: mid, saleId } = midSale(clock);
+    clock.set("2027-01-15T15:00:00.000Z"); // past both 60-day deadlines, no poll
+    const s = receivePayment(mid, { saleId }, clock).snapshot;
+    const deadline = s.payouts.filter(
+      (p) => p.artistId === "art_ines" && p.reason === "deadline",
+    );
+    expect(deadline.reduce((a, p) => a + p.amountCents, 0)).toBe(800_000);
+    expect(s.sales.find((x) => x.id === saleId)!.status).toBe("paid");
+    expectBalanced(s);
+  });
+});

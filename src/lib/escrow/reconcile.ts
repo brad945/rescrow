@@ -225,6 +225,26 @@ function journalBreaks(
     const sum = e.postings.reduce((t, p) => t + p.cents, 0);
     if (sum !== 0) out.push(`Journal entry ${e.id} sums to ${sum}, not zero`);
   }
+  // Each receipt entry matches the payment it records: the buyer paid the
+  // payment's amount and trust got exactly its hold. Offsetting edits across
+  // two receipts keep every balance intact; this catches them.
+  for (const e of s.journal.filter((x) => x.code === "RECEIPT_SPLIT")) {
+    const payment = s.payments.find((p) => p.id === e.ref);
+    if (!payment || payment.galleryId !== galleryId) continue;
+    const hold = s.holds.find((h) => h.paymentId === payment.id);
+    const of = (prefix: string) =>
+      e.postings
+        .filter((p) => p.account.startsWith(prefix))
+        .reduce((t, p) => t + p.cents, 0);
+    if (
+      -of(`buyer:${galleryId}:`) !== payment.amountCents ||
+      of(`trust:${galleryId}:`) !== (hold?.amountCents ?? 0)
+    ) {
+      out.push(
+        `Journal entry ${e.id} doesn't match payment ${payment.id}: buyer ${formatCents(-of(`buyer:${galleryId}:`))}, trust ${formatCents(of(`trust:${galleryId}:`))}; the records say ${formatCents(payment.amountCents)} and ${formatCents(hold?.amountCents ?? 0)}`,
+      );
+    }
+  }
   const bal = balancesOf(s.journal);
   const sumKind = (kind: string) =>
     [...bal]
