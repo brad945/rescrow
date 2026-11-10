@@ -175,6 +175,19 @@ const PLANTS: [string, (s: Snapshot) => void, RegExp][] = [
     /has 0 refund records, expected 1/,
   ],
   [
+    "two payments share a bank transaction id",
+    (s) => {
+      const [a, b] = s.payments.slice(-2);
+      b.rampTransactionId = a.rampTransactionId;
+    },
+    /was booked 2 times/,
+  ],
+  [
+    "a payment has no bank transaction id",
+    (s) => void delete s.payments.at(-1)!.rampTransactionId,
+    /has no bank transaction id/,
+  ],
+  [
     "the opening balance is missing",
     (s) => void delete gallery(s).openingBalanceCents,
     /No opening balance on record/,

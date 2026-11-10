@@ -100,7 +100,7 @@ export const SEED_NOW = "2026-11-09T16:41:12.000Z";
  * Bumped whenever the seed changes shape or content, so a data file written by
  * an older build is reseeded instead of loaded.
  */
-export const SEED_VERSION = 2;
+export const SEED_VERSION = 3;
 
 export function createSeed(now: string = SEED_NOW): Snapshot {
   const shift = Date.parse(now) - Date.parse(SEED_NOW);
@@ -269,6 +269,7 @@ export function createSeed(now: string = SEED_NOW): Snapshot {
         amountCents: 1_800_000,
         method: "wire",
         receivedAt: t("2026-10-16T14:02:37.000Z"),
+        rampTransactionId: "rtx_seed_tidewater_1",
       },
       {
         id: "pay_lamps_1",
@@ -277,6 +278,7 @@ export function createSeed(now: string = SEED_NOW): Snapshot {
         amountCents: 400_000,
         method: "ach",
         receivedAt: t("2026-10-30T16:41:12.000Z"),
+        rampTransactionId: "rtx_seed_lamps_1",
       },
     ],
     holds: [

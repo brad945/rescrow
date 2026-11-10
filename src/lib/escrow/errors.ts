@@ -3,3 +3,6 @@ export class EscrowError extends Error {}
 
 /** The journal refused an entry: it doesn't balance, or an account rule forbids it. */
 export class LedgerRejected extends EscrowError {}
+
+/** The same bank transaction id arrived again with different details. */
+export class IdempotencyConflict extends EscrowError {}

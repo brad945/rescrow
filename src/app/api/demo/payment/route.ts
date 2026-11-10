@@ -9,6 +9,7 @@ const schema: z.ZodType<ReceivePaymentRequest> = z.object({
   saleId: z.string(),
   amountCents: z.number().int().positive().optional(),
   method: z.enum(["wire", "ach", "card"]).optional(),
+  rampTransactionId: z.string().min(1).max(64).optional(),
 });
 
 export async function POST(req: Request) {

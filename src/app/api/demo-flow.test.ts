@@ -16,6 +16,7 @@ import { POST as attempt } from "./demo/attempt/route";
 import { POST as cancel } from "./demo/cancel/route";
 import { POST as insolvency } from "./demo/insolvency/route";
 import { POST as pay } from "./demo/payment/route";
+import { POST as redeliver } from "./demo/redeliver/route";
 import { POST as reset } from "./demo/reset/route";
 import { POST as sell } from "./demo/sale/route";
 import { GET as state } from "./state/route";
@@ -29,6 +30,7 @@ const ROUTES: Record<string, (req: Request) => Promise<Response>> = {
   "/api/demo/reset": reset,
   "/api/demo/attempt": attempt,
   "/api/demo/advance": advance,
+  "/api/demo/redeliver": redeliver,
 };
 
 let dir: string;
@@ -221,6 +223,43 @@ describe("the recorded demo, end to end", () => {
     ).toBe(800_000);
     expect(r.coveredByGalleryCents).toBe(400_000);
     balanced(s);
+  });
+
+  it("D after the final wire: a redelivered transaction books nothing", async () => {
+    let { s } = await press(await call("/api/demo/reset"));
+    const step = stepFor(s);
+    expect(step.redeliver).toBeDefined();
+    const before = s;
+    s = await call(step.redeliver!.path, step.redeliver!.body);
+    for (const k of [
+      "galleries",
+      "payments",
+      "holds",
+      "payouts",
+      "journal",
+    ] as const) {
+      expect(s[k]).toEqual(before[k]);
+    }
+    expect(s.activity[0].kind).toBe("feed_duplicate");
+    expect(s.activity[0].artistId).toBe("art_ines");
+    const ines = s.payouts
+      .filter((p) => p.artistId === "art_ines")
+      .reduce((a, p) => a + p.amountCents, 0);
+    expect(ines).toBe(1_200_000);
+    balanced(s);
+  });
+
+  it("pressing → twice for the same wire can't book it twice", async () => {
+    const { s } = await press(await call("/api/demo/reset"), 3);
+    const sale = s.sales.at(-1)!;
+    const first = s.payments.filter((p) => p.saleId === sale.id)[0];
+    const again = await call("/api/demo/payment", {
+      saleId: sale.id,
+      method: first.method,
+      rampTransactionId: first.rampTransactionId,
+    });
+    expect(again.payments).toEqual(s.payments);
+    balanced(again);
   });
 
   it("the demo clock refuses silly jumps", async () => {

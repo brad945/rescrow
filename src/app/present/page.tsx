@@ -70,6 +70,11 @@ export default function PresentPage() {
     if (step?.canCancel && sale && !busy)
       void act("/api/demo/cancel", { saleId: sale.id });
   }, [snapshot, step, busy, act]);
+  const redeliver = useCallback(() => {
+    if (step?.redeliver && !busy)
+      void act(step.redeliver.path, step.redeliver.body);
+  }, [step, busy, act]);
+
   const advance = useCallback(() => {
     if (step?.advance && !busy) void act(step.advance.path, step.advance.body);
   }, [step, busy, act]);
@@ -99,11 +104,13 @@ export default function PresentPage() {
         attempt();
       } else if (e.key === "t" || e.key === "T") {
         advance();
+      } else if (e.key === "d" || e.key === "D") {
+        redeliver();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, reset, cancel, fail, attempt, advance]);
+  }, [next, reset, cancel, fail, attempt, advance, redeliver]);
 
   if (!snapshot || !step) {
     return (
@@ -416,8 +423,13 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
                 {feed.map((a, i) => (
                   <li
                     key={a.id}
-                    className={`rounded-lg px-3 py-2 text-[12px] leading-snug ${a.kind === "trust_move_refused" ? "border border-danger/30 bg-danger/5" : "bg-card"} ${i === 0 ? "slide-in" : ""}`}
+                    className={`rounded-lg px-3 py-2 text-[12px] leading-snug ${a.kind === "trust_move_refused" ? "border border-danger/30 bg-danger/5" : a.kind === "feed_duplicate" ? "border border-line bg-paper text-muted" : "bg-card"} ${i === 0 ? "slide-in" : ""}`}
                   >
+                    {a.kind === "feed_duplicate" && (
+                      <span className="mb-0.5 block text-[10px] font-semibold tracking-wide uppercase">
+                        Duplicate ignored
+                      </span>
+                    )}
                     {a.kind === "trust_move_refused" && (
                       <span className="mb-0.5 block text-[10px] font-semibold tracking-wide text-danger uppercase">
                         Blocked by Rescrow

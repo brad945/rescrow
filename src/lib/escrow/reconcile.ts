@@ -36,6 +36,20 @@ export function reconcile(s: Snapshot, galleryId: Id): Reconciliation {
     s.sales.filter((x) => x.status === "cancelled").map((x) => x.id),
   );
 
+  // Completeness against the bank feed: every payment carries the feed's
+  // transaction id, and no id was booked twice.
+  const ids = new Map<string, number>();
+  for (const p of payments) {
+    if (!p.rampTransactionId) {
+      breaks.push(`Payment ${p.id} has no bank transaction id`);
+    } else {
+      ids.set(p.rampTransactionId, (ids.get(p.rampTransactionId) ?? 0) + 1);
+    }
+  }
+  for (const [id, n] of ids) {
+    if (n > 1) breaks.push(`Bank transaction ${id} was booked ${n} times`);
+  }
+
   let galleryParts = 0;
   let galleryPartsRefunded = 0;
   for (const p of payments) {

@@ -8,6 +8,7 @@ import type {
   EscrowHold,
   HoldStatus,
   Id,
+  IncomingPayment,
   PaymentMethod,
   Payout,
   Sale,
@@ -19,9 +20,9 @@ import { formatCents, methodLabel, shareOf } from "@/lib/money";
 // Pure escrow rules. Each function returns a new snapshot and never mutates
 // its input, so routes can load, apply, and save.
 
-import { EscrowError, LedgerRejected } from "./errors";
+import { EscrowError, IdempotencyConflict, LedgerRejected } from "./errors";
 import { acct, entry, post, postTrustRelease } from "./journal";
-export { EscrowError, LedgerRejected } from "./errors";
+export { EscrowError, IdempotencyConflict, LedgerRejected } from "./errors";
 
 export interface Clock {
   now: () => string;
@@ -332,9 +333,24 @@ export function createSale(
 
 export function receivePayment(
   input: Snapshot,
-  args: { saleId: Id; amountCents?: Cents; method?: PaymentMethod },
+  args: {
+    saleId: Id;
+    amountCents?: Cents;
+    method?: PaymentMethod;
+    rampTransactionId?: string;
+  },
   clock: Clock = systemClock,
 ): { snapshot: Snapshot; hold: EscrowHold } {
+  // Idempotency comes first, before any status check: a bank feed that
+  // redelivers a transaction after the sale completed, or after the gallery
+  // failed, must still be a no-op, not an error.
+  if (args.rampTransactionId !== undefined) {
+    const seen = input.payments.find(
+      (p) => p.rampTransactionId === args.rampTransactionId,
+    );
+    if (seen) return redelivered(input, seen, args, clock);
+  }
+
   const s = structuredClone(input);
   const sale = find(s.sales, args.saleId, "Sale");
   assertActive(find(s.galleries, sale.galleryId, "Gallery"));
@@ -365,6 +381,7 @@ export function receivePayment(
     amountCents: amount,
     method,
     receivedAt: at,
+    rampTransactionId: args.rampTransactionId ?? clock.id("rtx"),
   };
   // Share is computed before the payment is recorded (it rounds on the running total).
   const artistShare = artistShareOfPayment(s, sale, amount);
@@ -460,6 +477,48 @@ export function releaseDueHolds(
     );
   }
   return s;
+}
+
+/**
+ * A transaction id we've already booked. Only the details the caller sent are
+ * compared (the sale always; amount and method only if given), so a retried
+ * request that leaves the amount to default still matches. Same details: one
+ * feed_duplicate row and nothing else. Different details: refused.
+ */
+function redelivered(
+  input: Snapshot,
+  seen: IncomingPayment,
+  args: { saleId: Id; amountCents?: Cents; method?: PaymentMethod },
+  clock: Clock,
+): { snapshot: Snapshot; hold: EscrowHold } {
+  const differs: string[] = [];
+  if (args.saleId !== seen.saleId)
+    differs.push(`sale ${args.saleId} vs ${seen.saleId}`);
+  if (args.amountCents !== undefined && args.amountCents !== seen.amountCents) {
+    differs.push(
+      `${formatCents(args.amountCents)} vs ${formatCents(seen.amountCents)}`,
+    );
+  }
+  if (args.method !== undefined && args.method !== seen.method) {
+    differs.push(`${args.method} vs ${seen.method}`);
+  }
+  if (differs.length > 0) {
+    throw new IdempotencyConflict(
+      `Transaction ${seen.rampTransactionId} was already booked with different details (${differs.join("; ")})`,
+    );
+  }
+  const s = structuredClone(input);
+  const sale = find(s.sales, seen.saleId, "Sale");
+  log(
+    s,
+    clock,
+    "feed_duplicate",
+    `Ramp delivered ${seen.rampTransactionId} again (${methodLabel(seen.method)}, ${formatCents(seen.amountCents)}). Already booked, nothing moved`,
+    { galleryId: seen.galleryId, artistId: sale.artistId },
+  );
+  const hold = s.holds.find((h) => h.paymentId === seen.id);
+  if (!hold) throw new EscrowError(`Payment ${seen.id} has no trust hold`);
+  return { snapshot: s, hold };
 }
 
 /**

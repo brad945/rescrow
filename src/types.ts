@@ -162,7 +162,8 @@ export type ActivityKind =
   | "agent_flag"
   | "artwork_returned"
   | "trust_move_refused"
-  | "gallery_covered_refund";
+  | "gallery_covered_refund"
+  | "feed_duplicate";
 
 export interface Activity {
   id: Id;
@@ -263,6 +264,15 @@ export interface ReceivePaymentRequest {
   /** Defaults to the next installment amount when omitted. */
   amountCents?: Cents;
   method?: PaymentMethod;
+  /**
+   * The bank feed's id for this transaction. Delivering the same id again is a
+   * no-op; the same id with different details is refused.
+   */
+  rampTransactionId?: string;
+}
+
+export interface RedeliverRequest {
+  galleryId: Id;
 }
 
 export interface CancelSaleRequest {

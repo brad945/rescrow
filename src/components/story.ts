@@ -22,6 +22,8 @@ export type Step = {
   attempt?: { path: string; body: unknown };
   /** Jump the demo clock past Ines's payout deadline (key T). */
   advance?: { label: string; path: string; body: unknown };
+  /** The bank feed redelivers the latest transaction (key D). */
+  redeliver?: { path: string; body: unknown };
 };
 
 /** Days the demo clock jumps: one past Ines's 60-day payout window. */
@@ -119,6 +121,7 @@ export function stepFor(s: Snapshot): Step {
 
   if (sale.status === "paid") {
     return {
+      redeliver: { path: "/api/demo/redeliver", body: { galleryId: GALLERY } },
       index: 5,
       title: "Paid in full, artist paid today",
       caption:
@@ -159,9 +162,18 @@ export function stepFor(s: Snapshot): Step {
           ? `Final ${due} wire arrives`
           : `${METHODS[n] === "ach" ? "ACH" : "Wire"} for ${due} arrives`,
       path: "/api/demo/payment",
-      body: { saleId: sale.id, method: METHODS[n] ?? "wire" },
+      body: {
+        saleId: sale.id,
+        method: METHODS[n] ?? "wire",
+        // The bank's id for this transaction: pressing → twice can't book it twice.
+        rampTransactionId: `rtx_${sale.id}_${n + 1}`,
+      },
     },
     canCancel: n > 0,
+    redeliver:
+      n > 0
+        ? { path: "/api/demo/redeliver", body: { galleryId: GALLERY } }
+        : undefined,
     // After a clock jump some of Ines's trust is already paid out, so the
     // insolvency take (narrated as $8,000 to Ines) is only offered at day 0.
     canFail: n > 0 && days === 0,

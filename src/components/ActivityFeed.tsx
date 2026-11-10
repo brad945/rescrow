@@ -17,6 +17,8 @@ const LABEL: Partial<Record<ActivityKind, string>> = {
   agent_flag: "Flag",
   artwork_returned: "Returned",
   trust_move_refused: "Refused",
+  gallery_covered_refund: "Refund",
+  feed_duplicate: "Duplicate",
 };
 
 export function ActivityFeed({
