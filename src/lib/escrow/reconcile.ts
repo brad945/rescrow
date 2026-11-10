@@ -178,6 +178,7 @@ export function reconcile(s: Snapshot, galleryId: Id): Reconciliation {
   }
 
   breaks.push(...subLedgerBreaks(s, galleryId));
+  breaks.push(...sealBreaks(s, galleryId));
   breaks.push(
     ...journalBreaks(s, galleryId, {
       openingCents: gallery.openingBalanceCents,
@@ -413,4 +414,39 @@ export function artistAccount(
       (bal.get(acct.trust(galleryId, artistId)) ?? 0) === heldCents &&
       (bal.get(acct.artist(galleryId, artistId)) ?? 0) === payouts,
   };
+}
+
+/**
+ * Each closed month must still hold exactly the journal entries it was
+ * sealed with. This catches any later edit, deletion or insertion that
+ * didn't also rewrite the close record (whoever controls the data file could
+ * rewrite both; a hash would have the same limit).
+ */
+function sealBreaks(s: Snapshot, galleryId: Id): string[] {
+  const out: string[] = [];
+  for (const c of (s.closedPeriods ?? []).filter(
+    (x) => x.galleryId === galleryId,
+  )) {
+    const entries = s.journal.filter(
+      (e) =>
+        e.at <= c.through &&
+        e.postings.some((p) => p.account.split(":")[1] === galleryId),
+    );
+    const totals: Record<string, Cents> = {};
+    for (const e of entries) {
+      for (const p of e.postings) {
+        if (p.account.split(":")[1] !== galleryId) continue;
+        totals[p.account] = (totals[p.account] ?? 0) + p.cents;
+      }
+    }
+    const changed = [
+      ...new Set([...Object.keys(totals), ...Object.keys(c.totals)]),
+    ].filter((a) => (totals[a] ?? 0) !== (c.totals[a] ?? 0));
+    if (entries.length !== c.entryCount || changed.length > 0) {
+      out.push(
+        `Books closed for ${c.month} with ${c.entryCount} entries; the journal now shows ${entries.length}${changed.length ? `, and ${changed.join(", ")} changed` : ""}`,
+      );
+    }
+  }
+  return out;
 }

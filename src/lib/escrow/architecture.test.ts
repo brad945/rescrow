@@ -135,7 +135,7 @@ describe("architecture: every write that moves money is accounted for", () => {
 
 describe("architecture: routes run on the demo clock", () => {
   const MUTATORS =
-    /\b(createSale|receivePayment|cancelSale|declareInsolvency|attemptTrustMove|releaseDueHolds|applyTerms)\(/;
+    /\b(createSale|receivePayment|cancelSale|declareInsolvency|attemptTrustMove|releaseDueHolds|applyTerms|closePeriod)\(/;
 
   it("every engine call in a route passes clockFor(...)", () => {
     const bad: string[] = [];
@@ -143,7 +143,7 @@ describe("architecture: routes run on the demo clock", () => {
       const text = fs.readFileSync(file, "utf8");
       // Join each call to its closing paren so multi-line calls are seen whole.
       const calls = text.match(
-        /\b(?:createSale|receivePayment|cancelSale|declareInsolvency|attemptTrustMove|releaseDueHolds|applyTerms)\([\s\S]*?\)\s*[,;.)]/g,
+        /\b(?:createSale|receivePayment|cancelSale|declareInsolvency|attemptTrustMove|releaseDueHolds|applyTerms|closePeriod)\([\s\S]*?\)\s*[,;.)]/g,
       );
       for (const c of calls ?? []) {
         if (MUTATORS.test(c) && !c.includes("clockFor(")) {

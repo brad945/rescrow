@@ -539,3 +539,72 @@ export function describeTieOut(t: TieOut): string {
     ? `Trust covered ${(t.coverageBps / 100).toFixed(2)}%: held in trust ${formatCents(t.restrictedCashCents)} = due to artists in the ledger ${formatCents(t.dueToArtistsCents)}`
     : `Trust does not tie out: held in trust ${formatCents(t.restrictedCashCents)}, due to artists in the ledger ${formatCents(t.dueToArtistsCents)} (${(t.coverageBps / 100).toFixed(2)}% covered)`;
 }
+
+// Month-end close.
+
+/** "YYYY-MM" of a timestamp, in UTC. */
+export function monthOf(iso: string): string {
+  return iso.slice(0, 7);
+}
+
+/** The last instant of a "YYYY-MM" month, in UTC. */
+export function endOfMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 1) - 1).toISOString();
+}
+
+function nextMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
+}
+
+export function monthLabel(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Journal entries that touch a gallery's accounts. */
+export function galleryEntries(s: Snapshot, galleryId: Id) {
+  return s.journal.filter((e) =>
+    e.postings.some((p) => p.account.split(":")[1] === galleryId),
+  );
+}
+
+/**
+ * The month after the gallery's latest close, or the month of its earliest
+ * journal entry if it has never closed one. Months close in order, none
+ * skipped.
+ */
+export function nextMonthToClose(s: Snapshot, galleryId: Id): string | null {
+  const closes = (s.closedPeriods ?? [])
+    .filter((c) => c.galleryId === galleryId)
+    .map((c) => c.month)
+    .sort();
+  if (closes.length > 0) return nextMonth(closes.at(-1)!);
+  const first = galleryEntries(s, galleryId)
+    .map((e) => e.at)
+    .filter(Boolean)
+    .sort()[0];
+  return first ? monthOf(first) : null;
+}
+
+/** Entry count and per-account totals of the gallery's journal through an instant. */
+export function sealOf(
+  s: Snapshot,
+  galleryId: Id,
+  through: string,
+): { entryCount: number; totals: Record<string, Cents> } {
+  const entries = galleryEntries(s, galleryId).filter((e) => e.at <= through);
+  const totals: Record<string, Cents> = {};
+  for (const e of entries) {
+    for (const p of e.postings) {
+      if (p.account.split(":")[1] !== galleryId) continue;
+      totals[p.account] = (totals[p.account] ?? 0) + p.cents;
+    }
+  }
+  return { entryCount: entries.length, totals };
+}

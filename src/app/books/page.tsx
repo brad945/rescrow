@@ -16,6 +16,8 @@ import {
   toCsv,
   toQuickBooksJson,
   incomeStatement,
+  monthLabel,
+  nextMonthToClose,
   trialBalance,
   trustTieOut,
 } from "@/lib/books";
@@ -33,7 +35,7 @@ function download(name: string, type: string, text: string) {
 const MATRIX = flowMatrix();
 
 export default function BooksPage() {
-  const { snapshot, error } = useSnapshot();
+  const { snapshot, error, busy, act } = useSnapshot();
   const [basis, setBasis] = useState<"accrual" | "cash">("accrual");
   const gallery = snapshot?.galleries.find((g) => g.id === GALLERY);
 
@@ -56,6 +58,8 @@ export default function BooksPage() {
     snapshot.artists.find((a) => a.id === id)?.name ?? id ?? "";
   const entries = [...snapshot.journal].reverse().slice(0, 12);
   const income = incomeStatement(lines, basis);
+  const toClose = nextMonthToClose(snapshot, GALLERY);
+  const closes = [...(snapshot.closedPeriods ?? [])].reverse();
 
   return (
     <>
@@ -98,6 +102,12 @@ export default function BooksPage() {
             </button>
           </div>
         </div>
+
+        {error && (
+          <p className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+            {error}
+          </p>
+        )}
 
         <div className="flex flex-wrap gap-2 text-[12px]">
           <Badge ok={tb.balanced}>
@@ -283,6 +293,68 @@ export default function BooksPage() {
               : "Cash: the gallery's part of buyer money as it arrives, less what cancellations handed back."}{" "}
             The difference is exactly what is still held as buyer deposits.
             Money held for artists is never in either.
+          </p>
+        </Card>
+
+        <Card
+          title="Month-end close"
+          action={
+            toClose && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void act("/api/books/close", {
+                    galleryId: GALLERY,
+                    month: toClose,
+                  })
+                }
+                className="rounded bg-ink px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+              >
+                Close {monthLabel(toClose)}
+              </button>
+            )
+          }
+        >
+          <p className="text-[12px] text-muted">
+            A month can only be closed after it ends, in order, while every
+            reconciliation check passes (down to each payment and payout) and no
+            share in trust is past its deadline. If anything fails, the close is
+            refused and says why.
+          </p>
+          {closes.length > 0 && (
+            <ul className="mt-3 divide-y divide-line/60 text-[12px]">
+              {closes.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-2"
+                >
+                  <span className="font-medium">{monthLabel(c.month)}</span>
+                  <span className="rounded-sm border border-trust/30 px-1.5 text-[11px] text-trust">
+                    Sealed
+                  </span>
+                  {c.checks.map((k) => (
+                    <span
+                      key={k.label}
+                      className={k.ok ? "text-trust" : "text-danger"}
+                    >
+                      {k.ok ? "✓" : "✗"} {k.label}
+                    </span>
+                  ))}
+                  <span className="text-muted">
+                    {c.entryCount} journal entries · trial balance{" "}
+                    <Money cents={c.trialBalanceCents} /> · held in trust{" "}
+                    <Money cents={c.trustHeldCents} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-[11px] text-faint">
+            Months in UTC. Sealed by entry count and totals: this catches later
+            edits, not someone who rewrites the whole file. Postings into a
+            closed month are detected, not yet refused. Not synced to an
+            accounting system.
           </p>
         </Card>
 

@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { POST as readAgreement } from "./agent/read/route";
+import { POST as closeBooks } from "./books/close/route";
+import { nextMonthToClose } from "@/lib/books";
 import { POST as cancel } from "./demo/cancel/route";
 import { POST as insolvency } from "./demo/insolvency/route";
 import { POST as pay } from "./demo/payment/route";
@@ -143,5 +145,28 @@ describe("demo API", () => {
   it("rejects an insolvency request with no gallery id", async () => {
     const res = await insolvency(post({}));
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /api/books/close", () => {
+  it("closes the next month, then refuses it twice, a wrong month and a bad body", async () => {
+    const s = await (await reset()).json();
+    const month = nextMonthToClose(s, "gal_lowline")!;
+    let res = await closeBooks(post({ galleryId: "gal_lowline", month }));
+    expect(res.status).toBe(200);
+    const after = await res.json();
+    expect(after.closedPeriods).toHaveLength(1);
+    expect(after.activity[0].kind).toBe("period_closed");
+
+    for (const body of [
+      { galleryId: "gal_lowline", month },
+      { galleryId: "gal_lowline", month: "2031-01" },
+      { galleryId: "gal_lowline", month: "October" },
+      "{nope",
+    ]) {
+      res = await closeBooks(post(body));
+      expect(res.status).toBe(400);
+      expect(typeof (await res.json()).error).toBe("string");
+    }
   });
 });

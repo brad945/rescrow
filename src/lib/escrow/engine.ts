@@ -14,6 +14,9 @@ import type {
   Sale,
   Snapshot,
   TrustMoveRequest,
+  ClosePeriodRequest,
+  PeriodClose,
+  VerificationCheck,
 } from "@/types";
 import { formatCents, methodLabel, shareOf } from "@/lib/money";
 
@@ -22,6 +25,15 @@ import { formatCents, methodLabel, shareOf } from "@/lib/money";
 
 import { EscrowError, IdempotencyConflict, LedgerRejected } from "./errors";
 import { acct, entry, post, postTrustRelease } from "./journal";
+import { reconcile } from "./reconcile";
+import {
+  endOfMonth,
+  glLines,
+  monthLabel,
+  nextMonthToClose,
+  sealOf,
+  trialBalance,
+} from "@/lib/books";
 export { EscrowError, IdempotencyConflict, LedgerRejected } from "./errors";
 
 export interface Clock {
@@ -455,15 +467,21 @@ function payOutSale(s: Snapshot, saleId: Id, clock: Clock): void {
  * Pays out any share that has reached the deadline in its agreement while the
  * sale is still being paid off. Returns the input unchanged when nothing is due.
  */
+/** A share still in trust whose agreement deadline has passed at `nowMs`. */
+export function isDue(h: EscrowHold, nowMs: number): boolean {
+  return (
+    h.status === "locked" &&
+    h.dueBy !== undefined &&
+    Date.parse(h.dueBy) <= nowMs
+  );
+}
+
 export function releaseDueHolds(
   input: Snapshot,
   clock: Clock = systemClock,
 ): Snapshot {
   const now = Date.parse(clock.now());
-  const due = (h: EscrowHold) =>
-    h.status === "locked" &&
-    h.dueBy !== undefined &&
-    Date.parse(h.dueBy) <= now;
+  const due = (h: EscrowHold) => isDue(h, now);
   if (!input.holds.some(due)) return input;
   const s = structuredClone(input);
   // Pay in deadline order, each share stamped at its own deadline: the
@@ -688,6 +706,86 @@ export function attemptTrustMove(
     { galleryId: gallery.id, artistId: artist.id, amountCents: total },
   );
   return { snapshot: s, refusal };
+}
+
+/**
+ * Closes a month of the gallery's books. Months close in order. It refuses,
+ * naming every failure and changing nothing, unless the month has ended,
+ * reconcile() has no breaks, and no share in trust is past its deadline.
+ * On success it seals the month with the count and totals of its journal
+ * entries (reconcile() then flags any later change) and moves no money.
+ */
+export function closePeriod(
+  input: Snapshot,
+  args: ClosePeriodRequest,
+  clock: Clock = systemClock,
+): { snapshot: Snapshot; close: PeriodClose } {
+  const gallery = find(input.galleries, args.galleryId, "Gallery");
+  const expected = nextMonthToClose(input, gallery.id);
+  if (!expected) throw new EscrowError("Nothing has been booked yet");
+  if (args.month !== expected) {
+    throw new EscrowError(
+      `The next month to close is ${monthLabel(expected)}, not ${args.month}`,
+    );
+  }
+  const through = endOfMonth(args.month);
+  const now = clock.now();
+  if (through >= now) {
+    throw new EscrowError(`${monthLabel(args.month)} hasn't ended yet`);
+  }
+  const r = reconcile(input, gallery.id);
+  const overdue = input.holds.filter(
+    (h) => h.galleryId === gallery.id && isDue(h, Date.parse(now)),
+  );
+  const checks: VerificationCheck[] = [
+    {
+      label: "Books reconcile",
+      ok: r.balanced,
+      detail: r.balanced
+        ? "Every reconciliation check passes, down to each payment and payout"
+        : r.breaks.join("; "),
+    },
+    {
+      label: "Nothing overdue",
+      ok: overdue.length === 0,
+      detail:
+        overdue.length === 0
+          ? "No share in trust is past its deadline"
+          : `${overdue.length} share(s) in trust are past their deadline`,
+    },
+  ];
+  const failed = checks.filter((c) => !c.ok);
+  if (failed.length > 0) {
+    throw new EscrowError(
+      `Can't close ${monthLabel(args.month)}: ${failed.map((c) => `${c.label.toLowerCase()} failed (${c.detail})`).join("; ")}`,
+    );
+  }
+
+  const s = structuredClone(input);
+  const seal = sealOf(s, gallery.id, through);
+  const lines = glLines(s, gallery.id).filter((l) => l.at <= through);
+  const close: PeriodClose = {
+    id: clock.id("close"),
+    galleryId: gallery.id,
+    month: args.month,
+    through,
+    closedAt: now,
+    ...seal,
+    checks,
+    trialBalanceCents: trialBalance(lines).debitCents,
+    trustHeldCents: Object.entries(seal.totals)
+      .filter(([a]) => a.startsWith(`trust:${gallery.id}:`))
+      .reduce((t, [, c]) => t + c, 0),
+  };
+  s.closedPeriods = [...(s.closedPeriods ?? []), close];
+  log(
+    s,
+    clock,
+    "period_closed",
+    `Books closed for ${monthLabel(args.month)}: ${seal.entryCount} journal entries sealed, every check passed`,
+    { galleryId: gallery.id },
+  );
+  return { snapshot: s, close };
 }
 
 export function cancelSale(

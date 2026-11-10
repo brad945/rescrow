@@ -163,7 +163,8 @@ export type ActivityKind =
   | "artwork_returned"
   | "trust_move_refused"
   | "gallery_covered_refund"
-  | "feed_duplicate";
+  | "feed_duplicate"
+  | "period_closed";
 
 export interface Activity {
   id: Id;
@@ -194,6 +195,30 @@ export interface Snapshot {
   seedVersion?: number;
   /** Demo clock: how far ahead of the wall clock this snapshot's "now" is. */
   clockOffsetMs?: number;
+  /** Months whose books were closed and sealed; see closePeriod. */
+  closedPeriods?: PeriodClose[];
+}
+
+/**
+ * A closed month. It could only be closed while every reconciliation check
+ * passed and nothing was overdue, and it is sealed by the count and totals of
+ * the journal entries in it: any later change to that month is a named break.
+ */
+export interface PeriodClose {
+  id: Id;
+  galleryId: Id;
+  /** "YYYY-MM", in UTC. */
+  month: string;
+  /** The month's last instant (UTC). */
+  through: Timestamp;
+  closedAt: Timestamp;
+  entryCount: number;
+  /** Journal balance of each of the gallery's accounts as of `through`. */
+  totals: Record<string, Cents>;
+  checks: VerificationCheck[];
+  /** Context shown on the close, not gates. */
+  trialBalanceCents: Cents;
+  trustHeldCents: Cents;
 }
 
 /**
@@ -269,6 +294,12 @@ export interface ReceivePaymentRequest {
    * no-op; the same id with different details is refused.
    */
   rampTransactionId?: string;
+}
+
+export interface ClosePeriodRequest {
+  galleryId: Id;
+  /** "YYYY-MM": must be the next month to close. */
+  month: string;
 }
 
 export interface RedeliverRequest {
