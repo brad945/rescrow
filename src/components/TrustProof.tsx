@@ -1,5 +1,6 @@
 import type { Snapshot } from "@/types";
 import { reconcile } from "@/lib/escrow/reconcile";
+import { insolvencyOutcome, TRUST_STATUTE } from "@/lib/insolvency";
 import { Money } from "@/components/ui";
 
 const GALLERY = "gal_lowline";
@@ -13,6 +14,7 @@ export function TrustProof({ snapshot }: { snapshot: Snapshot }) {
   if (!gallery) return null;
   const r = reconcile(snapshot, GALLERY);
   const insolvent = gallery.status === "insolvent";
+  const outcome = insolvencyOutcome(snapshot, GALLERY);
   const returned = snapshot.artworks.filter(
     (w) => w.galleryId === GALLERY && w.status === "returned",
   ).length;
@@ -42,6 +44,17 @@ export function TrustProof({ snapshot }: { snapshot: Snapshot }) {
               </>
             )}
           </p>
+          {outcome && outcome.artistsShareOfCommingledCents > 0 && (
+            <p className="mt-1 text-ink/80">
+              Without a separate trust account, all{" "}
+              <Money cents={outcome.commingledCents} /> would have been one
+              balance in the administrator&apos;s hands,{" "}
+              <Money cents={outcome.artistsShareOfCommingledCents} /> of it the
+              artists&apos;. Getting that back would take a tracing claim in
+              court.
+            </p>
+          )}
+          <p className="mt-1 text-[11px] text-muted">{TRUST_STATUTE}</p>
         </div>
       )}
       <div

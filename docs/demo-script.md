@@ -73,6 +73,12 @@ Record this as a second take and cut it in. It pays off the hook.
 
 > Now the worst case. Lowline Gallery goes under. Creditors take every dollar in operating, the same way Stephen Friedman's did. But the eight thousand dollars held for Ines was never the gallery's. Rescrow pays it out of trust straight to her. Same failure. This time the artist gets paid. And the books still balance to the cent.
 
+Optional, about 6 seconds, if it fits:
+
+> Without a separate account, all sixty thousand would be one balance in the administrator's hands, and Ines would need a court to get her eight thousand back.
+
+(Computed from the same events: operating plus trust at the moment of failure. It doesn't claim what a court would award.)
+
 Optional, if there's time: `R`, run to payment 1, press `C` for the buyer cancelling. The artist's share goes back to the buyer straight from trust.
 
 ### Optional, 5 seconds: the accountant's view (open `/books`)

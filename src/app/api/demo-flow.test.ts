@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Snapshot } from "@/types";
 import { stepFor } from "@/components/story";
 import { reconcile } from "@/lib/escrow/reconcile";
+import { insolvencyOutcome } from "@/lib/insolvency";
 import { POST as readAgreement } from "./agent/read/route";
 import { POST as advance } from "./demo/advance/route";
 import { POST as attempt } from "./demo/attempt/route";
@@ -105,7 +106,12 @@ describe("the recorded demo, end to end", () => {
     // R, → four times (read, sell, pay, pay), then B.
     let { s } = await press(await call("/api/demo/reset"), 4);
     expect(stepFor(s).canFail).toBe(true);
+    const before = reconcile(s, "gal_lowline");
     s = await call("/api/demo/insolvency", { galleryId: "gal_lowline" });
+    // The counterfactual on screen: operating plus trust just before B.
+    expect(insolvencyOutcome(s, "gal_lowline")!.commingledCents).toBe(
+      before.operatingCents + before.trustCents,
+    );
 
     const g = s.galleries.find((x) => x.id === "gal_lowline")!;
     expect(g.status).toBe("insolvent");
