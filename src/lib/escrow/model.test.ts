@@ -121,6 +121,9 @@ function violations(prev: Snapshot, s: Snapshot): string[] {
   const g = s.galleries.find((x) => x.id === G)!;
   if (g.status === "insolvent") {
     if (r.trustCents !== 0) out.push("trust not empty after insolvency");
+    if (s.artworks.some((w) => w.galleryId === G && w.status === "consigned")) {
+      out.push("consigned work left in the estate after insolvency");
+    }
     if (g.operatingBalanceCents !== 0)
       out.push("operating not 0 after insolvency");
     if (

@@ -58,6 +58,8 @@ const MANIFEST = [
   "lib/escrow/engine.ts declareInsolvency: gallery.claimedByCreditorsCents =",
   "lib/escrow/engine.ts declareInsolvency: gallery.operatingBalanceCents = 0;",
   'lib/escrow/engine.ts declareInsolvency: gallery.status = "insolvent";',
+  // Unsold consigned works go back to their artists.
+  'lib/escrow/engine.ts declareInsolvency: for (const w of works) w.status = "returned";',
   // Cancel: the gallery refunds its own part from operating.
   "lib/escrow/engine.ts cancelSale: gallery.operatingBalanceCents -= galleryPart;",
   'lib/escrow/engine.ts cancelSale: sale.status = "cancelled";',

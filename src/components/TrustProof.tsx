@@ -13,6 +13,9 @@ export function TrustProof({ snapshot }: { snapshot: Snapshot }) {
   if (!gallery) return null;
   const r = reconcile(snapshot, GALLERY);
   const insolvent = gallery.status === "insolvent";
+  const returned = snapshot.artworks.filter(
+    (w) => w.galleryId === GALLERY && w.status === "returned",
+  ).length;
 
   return (
     <div className="space-y-2">
@@ -25,6 +28,15 @@ export function TrustProof({ snapshot }: { snapshot: Snapshot }) {
             Creditors took <Money cents={r.claimedByCreditorsCents} /> of
             operating cash. Every dollar in artist trust was paid to the artists
             instead. It was never the gallery&apos;s to lose.
+            {returned > 0 && (
+              <>
+                {" "}
+                {returned === 1
+                  ? "The one unsold consigned work went"
+                  : `All ${returned} unsold consigned works went`}{" "}
+                back to the artists, too.
+              </>
+            )}
           </p>
         </div>
       )}

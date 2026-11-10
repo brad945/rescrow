@@ -159,7 +159,8 @@ export type ActivityKind =
   | "deadline_payout"
   | "gallery_insolvent"
   | "creditor_claim"
-  | "agent_flag";
+  | "agent_flag"
+  | "artwork_returned";
 
 export interface Activity {
   id: Id;

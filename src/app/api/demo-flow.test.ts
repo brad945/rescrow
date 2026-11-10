@@ -114,6 +114,12 @@ describe("the recorded demo, end to end", () => {
     expect(stepFor(s).index).toBe(7);
     balanced(s);
 
+    // Unsold consigned works go back to their artists, not into the estate.
+    const left = s.artworks.filter((w) => w.status === "consigned");
+    expect(left).toEqual([]);
+    expect(s.artworks.some((w) => w.status === "returned")).toBe(true);
+    expect(s.activity.some((a) => a.kind === "artwork_returned")).toBe(true);
+
     // Nothing more can be sold or paid, and reset restores the stage.
     await expect(
       call("/api/demo/sale", {

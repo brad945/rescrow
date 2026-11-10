@@ -403,6 +403,26 @@ export function declareInsolvency(
       "insolvency",
     );
   }
+
+  // Consigned works are the artist's property, not the gallery's: unsold
+  // pieces go back to their artists rather than into the estate.
+  for (const artist of s.artists) {
+    const works = s.artworks.filter(
+      (w) =>
+        w.galleryId === gallery.id &&
+        w.artistId === artist.id &&
+        w.status === "consigned",
+    );
+    if (works.length === 0) continue;
+    for (const w of works) w.status = "returned";
+    log(
+      s,
+      clock,
+      "artwork_returned",
+      `Returned ${works.length === 1 ? "an unsold work" : `${works.length} unsold works`} to ${artist.name}: ${works.map((w) => w.title).join(", ")}. Consigned art is not part of the estate`,
+      { galleryId: gallery.id, artistId: artist.id },
+    );
+  }
   return { snapshot: s };
 }
 

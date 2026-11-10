@@ -11,6 +11,11 @@ const LABEL: Partial<Record<ActivityKind, string>> = {
   hold_refunded: "Refund",
   agreement_read: "Agent",
   reset: "Reset",
+  deadline_payout: "Payout",
+  gallery_insolvent: "Insolvent",
+  creditor_claim: "Creditors",
+  agent_flag: "Flag",
+  artwork_returned: "Returned",
 };
 
 export function ActivityFeed({
