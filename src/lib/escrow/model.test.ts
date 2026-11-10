@@ -318,7 +318,8 @@ describe("model-based: random interleavings keep every invariant", () => {
         `${outcome} reached too rarely`,
       ).toBeGreaterThanOrEqual(atLeast);
     }
-  });
+    // About 1s locally; shared CI runners can be several times slower.
+  }, 60_000);
 
   it("a deadline payout followed by a cancellation still balances", () => {
     const { clock, advanceDays } = movingClock("2026-11-10T15:00:00.000Z");
