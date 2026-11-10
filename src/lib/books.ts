@@ -389,7 +389,18 @@ function csvCell(v: string): string {
   return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
-export function toCsv(s: Snapshot, lines: GlLine[]): string {
+/** How an exported line names its account. Defaults to Rescrow's own codes. */
+export type AccountNamer = (code: string) => { number: string; name: string };
+const ownCodes: AccountNamer = (code) => ({
+  number: code,
+  name: CHART[code].name,
+});
+
+export function toCsv(
+  s: Snapshot,
+  lines: GlLine[],
+  account: AccountNamer = ownCodes,
+): string {
   const name = (id: Id | null) =>
     s.artists.find((a) => a.id === id)?.name ?? "";
   const rows = [
@@ -406,8 +417,8 @@ export function toCsv(s: Snapshot, lines: GlLine[]): string {
     ...lines.map((l) => [
       l.at.slice(0, 10),
       l.entryId,
-      l.account,
-      CHART[l.account].name,
+      account(l.account).number,
+      account(l.account).name,
       name(l.artistId),
       l.debitCents ? decimal(l.debitCents) : "",
       l.creditCents ? decimal(l.creditCents) : "",
@@ -421,7 +432,10 @@ export function toCsv(s: Snapshot, lines: GlLine[]): string {
  * QuickBooks Online-style journal entries. DocNumber is the journal entry id,
  * so importing the same file twice can be deduplicated on it.
  */
-export function toQuickBooksJson(lines: GlLine[]): string {
+export function toQuickBooksJson(
+  lines: GlLine[],
+  account: AccountNamer = ownCodes,
+): string {
   const byEntry = new Map<Id, GlLine[]>();
   for (const l of lines)
     byEntry.set(l.entryId, [...(byEntry.get(l.entryId) ?? []), l]);
@@ -435,7 +449,10 @@ export function toQuickBooksJson(lines: GlLine[]): string {
       DetailType: "JournalEntryLineDetail",
       JournalEntryLineDetail: {
         PostingType: l.debitCents ? "Debit" : "Credit",
-        AccountRef: { value: l.account, name: CHART[l.account].name },
+        AccountRef: {
+          value: account(l.account).number,
+          name: account(l.account).name,
+        },
       },
     })),
   }));

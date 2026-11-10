@@ -24,6 +24,13 @@ import {
   trustTieOut,
 } from "@/lib/books";
 import { reconcile } from "@/lib/escrow/reconcile";
+import {
+  GALLERY_CHART,
+  mapAccount,
+  SUGGESTED_MAPPING,
+  validateMapping,
+  type ChartMapping,
+} from "@/lib/chart";
 
 function download(name: string, type: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -39,6 +46,13 @@ const MATRIX = flowMatrix();
 export default function BooksPage() {
   const { snapshot, error, busy, act } = useSnapshot();
   const [basis, setBasis] = useState<"accrual" | "cash">("accrual");
+  const [useChart, setUseChart] = useState(false);
+  const [mapping, setMapping] = useState<ChartMapping>(SUGGESTED_MAPPING);
+  const refusals = validateMapping(mapping);
+  const namer =
+    useChart && refusals.length === 0
+      ? (code: string) => mapAccount(code, mapping)
+      : undefined;
   // The wall clock, refreshed every 30s; the snapshot's demo offset is added below.
   const [wall, setWall] = useState(() => Date.now());
   useEffect(() => {
@@ -94,7 +108,11 @@ export default function BooksPage() {
             <button
               type="button"
               onClick={() =>
-                download("rescrow-gl.csv", "text/csv", toCsv(snapshot, lines))
+                download(
+                  "rescrow-gl.csv",
+                  "text/csv",
+                  toCsv(snapshot, lines, namer),
+                )
               }
               className="rounded border border-line bg-card px-3 py-1.5 text-sm hover:border-ink/30"
             >
@@ -106,7 +124,7 @@ export default function BooksPage() {
                 download(
                   "rescrow-journal-entries.json",
                   "application/json",
-                  toQuickBooksJson(lines),
+                  toQuickBooksJson(lines, namer),
                 )
               }
               className="rounded border border-line bg-card px-3 py-1.5 text-sm hover:border-ink/30"
@@ -306,6 +324,64 @@ export default function BooksPage() {
               : "Cash: the gallery's part of buyer money as it arrives, less what cancellations handed back."}{" "}
             The difference is exactly what is still held as buyer deposits.
             Money held for artists is never in either.
+          </p>
+        </Card>
+
+        <Card
+          title="Export to your chart of accounts"
+          action={
+            <label className="flex items-center gap-1.5 text-[12px] text-muted">
+              <input
+                type="checkbox"
+                checked={useChart}
+                onChange={(e) => setUseChart(e.target.checked)}
+              />
+              Use this mapping for the downloads
+            </label>
+          }
+        >
+          <div className="grid gap-2 text-[12px] sm:grid-cols-2">
+            {Object.values(CHART).map((a) => (
+              <label
+                key={a.code}
+                className="flex items-center justify-between gap-2"
+              >
+                <span>
+                  <span className="num text-faint">{a.code}</span> {a.name}
+                </span>
+                <select
+                  value={mapping[a.code] ?? ""}
+                  onChange={(e) =>
+                    setMapping({ ...mapping, [a.code]: e.target.value })
+                  }
+                  className="max-w-[55%] rounded border border-line bg-card px-1.5 py-1"
+                >
+                  <option value="">Not mapped</option>
+                  {GALLERY_CHART.map((g) => (
+                    <option key={g.number} value={g.number}>
+                      {g.number} {g.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+          {refusals.length > 0 ? (
+            <ul className="mt-3 list-disc pl-5 text-[12px] text-danger">
+              {refusals.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-[12px] text-trust">
+              Mapping is safe: trust cash and what is owed to artists stay in
+              accounts of their own.
+            </p>
+          )}
+          <p className="mt-2 text-[11px] text-faint">
+            An export mapping onto a sample gallery chart, kept for this visit
+            only. It is refused, line by line, if it would put trust money in
+            operating cash or income on paper. Not a sync.
           </p>
         </Card>
 
