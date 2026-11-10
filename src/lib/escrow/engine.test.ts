@@ -166,6 +166,21 @@ describe("escrow engine", () => {
     ).toThrow(/needs a person to confirm: payout deadline/);
   });
 
+  it("logs an agent_flag when a live read fell back to the saved answer", () => {
+    const s1 = applyTerms(
+      createSeed(),
+      {
+        agreementId: "agr_ines",
+        terms: FIXTURE_TERMS.agr_ines,
+        source: "fixture",
+        flag: "connect ECONNREFUSED",
+      },
+      testClock(),
+    );
+    const flag = s1.activity.find((a) => a.kind === "agent_flag");
+    expect(flag?.message).toMatch(/ECONNREFUSED/);
+  });
+
   it("does not mutate its input", () => {
     const seed = createSeed();
     const copy = structuredClone(seed);

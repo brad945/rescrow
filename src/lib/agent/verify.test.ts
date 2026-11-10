@@ -81,6 +81,25 @@ describe("verify", () => {
 });
 
 describe("locate", () => {
+  it("matches straight quotes in the model's answer to curly quotes in the contract", () => {
+    const text =
+      "The Artist\u2019s proceeds are \u201Ctrust funds\u201D under law.";
+    expect(locate(text, `The Artist's proceeds are "trust funds"`)).toBe(
+      "The Artist\u2019s proceeds are \u201Ctrust funds\u201D",
+    );
+  });
+
+  it("reports quotes it could not find as unverified", () => {
+    const { terms } = verify(ines, {
+      ...good,
+      shareQuote: "The artist receives half of all proceeds.",
+    });
+    expect(terms.confidence).toBe("needs_review");
+    expect(terms.unverifiedCitations).toContain(
+      "The artist receives half of all proceeds.",
+    );
+  });
+
   it("tolerates line breaks and trailing punctuation in the quote", () => {
     expect(
       locate(

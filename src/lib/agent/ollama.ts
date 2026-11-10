@@ -1,7 +1,26 @@
 // Minimal streaming client for a local Ollama server.
 
 export const OLLAMA_URL = process.env.OLLAMA_URL ?? "http://localhost:11434";
-export const MODEL = process.env.RESCROW_MODEL ?? "gpt-oss:20b";
+const PREFERENCE = ["gpt-oss", "qwen", "llama"];
+
+/**
+ * OLLAMA_MODEL (or RESCROW_MODEL) if set; otherwise the first installed model
+ * in the order gpt-oss, qwen, llama.
+ */
+export async function pickModel(): Promise<string> {
+  const pinned = process.env.OLLAMA_MODEL ?? process.env.RESCROW_MODEL;
+  if (pinned) return pinned;
+  const res = await fetch(`${OLLAMA_URL}/api/tags`);
+  if (!res.ok) throw new Error(`Ollama returned ${res.status}`);
+  const { models = [] } = (await res.json()) as { models?: { name: string }[] };
+  for (const family of PREFERENCE) {
+    const hit = models.find(
+      (m) => m.name.startsWith(family) && !/vl|vision/.test(m.name),
+    );
+    if (hit) return hit.name;
+  }
+  throw new Error("No gpt-oss, qwen or llama model installed in Ollama");
+}
 
 export interface ChatRequest {
   system: string;
@@ -15,7 +34,10 @@ export interface ChatRequest {
 }
 
 /** Streams a chat completion and returns the full reply text. */
-export async function chat(req: ChatRequest): Promise<string> {
+export async function chat(
+  req: ChatRequest,
+): Promise<{ reply: string; model: string }> {
+  const model = await pickModel();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), req.timeoutMs);
   try {
@@ -24,7 +46,7 @@ export async function chat(req: ChatRequest): Promise<string> {
       signal: controller.signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: MODEL,
+        model,
         stream: true,
         think: "low",
         format: req.format,
@@ -66,7 +88,7 @@ export async function chat(req: ChatRequest): Promise<string> {
         }
       }
     }
-    return reply;
+    return { reply, model };
   } finally {
     clearTimeout(timer);
   }
@@ -78,7 +100,7 @@ export async function warm(): Promise<boolean> {
     const res = await fetch(`${OLLAMA_URL}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: MODEL, keep_alive: "30m" }),
+      body: JSON.stringify({ model: await pickModel(), keep_alive: "30m" }),
     });
     return res.ok;
   } catch (err) {

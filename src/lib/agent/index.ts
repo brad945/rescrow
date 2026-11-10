@@ -9,7 +9,7 @@ export interface AgentResult {
   source: "model" | "fixture";
   /** True when every number traced back to an exact quote. */
   verified: boolean;
-  /** Why the cached answer was used, when it was. */
+  /** Why a live read fell back to the saved answer, when it did. */
   fallbackReason?: string;
 }
 
@@ -24,7 +24,8 @@ Return:
 
 Every quote must be copied character for character from the agreement: a single sentence or clause, no paraphrasing, no ellipses. If you cannot quote it, leave it out.`;
 
-const TIMEOUT_MS = Number(process.env.RESCROW_AGENT_TIMEOUT_MS ?? 90_000);
+// Long enough for a cold model load on a laptop; /api/agent/warm avoids that on camera.
+const TIMEOUT_MS = Number(process.env.RESCROW_AGENT_TIMEOUT_MS ?? 60_000);
 
 /** Live callbacks while the model writes: its answer and its reasoning. */
 export interface StreamHandlers {
@@ -32,12 +33,12 @@ export interface StreamHandlers {
   onThinking?: (t: string) => void;
 }
 
-/** Runs the model on any agreement text and verifies what it says. */
+/** Runs the local model on any agreement text and verifies what it says. */
 export async function extractTerms(
   text: string,
   handlers: StreamHandlers = {},
 ): Promise<{ terms: AgreementTerms; verified: boolean }> {
-  const reply = await chat({
+  const { reply, model } = await chat({
     system: SYSTEM_PROMPT,
     user: text,
     format: modelOutputJsonSchema,
@@ -54,43 +55,50 @@ export async function extractTerms(
   if (!parsed.success) {
     throw new Error(`Model reply had the wrong shape: ${parsed.error.message}`);
   }
-  return verify(text, parsed.data);
+  const { terms, verified } = verify(text, parsed.data);
+  return { terms: { ...terms, model }, verified };
+}
+
+function saved(agreement: ConsignmentAgreement): AgentResult {
+  const fixture = FIXTURE_TERMS[agreement.id];
+  if (!fixture) {
+    throw new EscrowError(
+      `No saved answer for agreement ${agreement.id}; read it with mode "live"`,
+    );
+  }
+  return {
+    terms: { ...fixture, confidence: "high" },
+    source: "fixture",
+    verified: true,
+  };
 }
 
 /**
- * Reads a stored agreement. Uses the local model unless RESCROW_AGENT=fixture;
- * if the model is unreachable or returns something unusable, falls back to the
- * cached answer for the demo agreements and says why.
+ * Reads a stored agreement.
+ * - mode "saved" (default) returns the saved answer.
+ * - mode "live" asks the local model. If the model is unreachable, slow, or
+ *   returns something unusable, it falls back to the saved answer and reports
+ *   why. RESCROW_AGENT=fixture turns live reads off entirely.
  */
 export async function readAgreement(
   agreement: ConsignmentAgreement,
+  mode: "saved" | "live" = "saved",
   handlers: StreamHandlers = {},
 ): Promise<AgentResult> {
-  const fixture = FIXTURE_TERMS[agreement.id];
-  if (process.env.RESCROW_AGENT !== "fixture") {
-    try {
-      const { terms, verified } = await extractTerms(agreement.text, handlers);
-      return { terms, source: "model", verified };
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      console.error(`[agent] model failed on ${agreement.id}: ${reason}`);
-      if (!fixture) {
-        throw new EscrowError(
-          `The agent could not read this agreement (${reason}). Is Ollama running with ${process.env.RESCROW_MODEL ?? "gpt-oss:20b"}?`,
-        );
-      }
-      return {
-        terms: fixture,
-        source: "fixture",
-        verified: true,
-        fallbackReason: reason,
-      };
+  if (mode === "saved" || process.env.RESCROW_AGENT === "fixture") {
+    return saved(agreement);
+  }
+  try {
+    const { terms, verified } = await extractTerms(agreement.text, handlers);
+    return { terms, source: "model", verified };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(`[agent] live read failed on ${agreement.id}: ${reason}`);
+    if (!FIXTURE_TERMS[agreement.id]) {
+      throw new EscrowError(
+        `The agent could not read this agreement (${reason}). Is Ollama running?`,
+      );
     }
+    return { ...saved(agreement), fallbackReason: reason };
   }
-  if (!fixture) {
-    throw new EscrowError(
-      `No cached answer for ${agreement.id} and the model is turned off (RESCROW_AGENT=fixture)`,
-    );
-  }
-  return { terms: fixture, source: "fixture", verified: true };
 }

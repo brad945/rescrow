@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSeed } from "@/lib/seed";
 import { readAgreement } from "./index";
 
@@ -24,6 +24,11 @@ const answer = JSON.stringify({
   notes: [],
 });
 
+beforeEach(() => {
+  // Pin the model so tests never ask Ollama which models are installed.
+  vi.stubEnv("OLLAMA_MODEL", "gpt-oss:20b");
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -37,7 +42,7 @@ describe("readAgreement", () => {
       vi.fn(async () => ollamaReply(answer)),
     );
     const tokens: string[] = [];
-    const result = await readAgreement(ines, {
+    const result = await readAgreement(ines, "live", {
       onToken: (t) => tokens.push(t),
     });
     expect(result.source).toBe("model");
@@ -55,7 +60,7 @@ describe("readAgreement", () => {
         ),
       ),
     );
-    const result = await readAgreement(ines);
+    const result = await readAgreement(ines, "live");
     expect(result.source).toBe("model");
     expect(result.verified).toBe(false);
   });
@@ -68,7 +73,7 @@ describe("readAgreement", () => {
         throw new Error("connect ECONNREFUSED");
       }),
     );
-    const result = await readAgreement(ines);
+    const result = await readAgreement(ines, "live");
     expect(result.source).toBe("fixture");
     expect(result.fallbackReason).toMatch(/ECONNREFUSED/);
     expect(error).toHaveBeenCalled();
@@ -80,16 +85,48 @@ describe("readAgreement", () => {
       "fetch",
       vi.fn(async () => ollamaReply("{not json")),
     );
+    const result = await readAgreement(ines, "live");
+    expect(result.source).toBe("fixture");
+  });
+
+  it("returns the saved answer without calling the model in saved mode", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
     const result = await readAgreement(ines);
     expect(result.source).toBe("fixture");
+    expect(result.terms.confidence).toBe("high");
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("skips the model entirely when RESCROW_AGENT=fixture", async () => {
     vi.stubEnv("RESCROW_AGENT", "fixture");
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
-    const result = await readAgreement(ines);
+    const result = await readAgreement(ines, "live");
     expect(result.source).toBe("fixture");
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("pickModel", () => {
+  it("prefers gpt-oss over other installed text models, skipping vision ones", async () => {
+    vi.stubEnv("OLLAMA_MODEL", "");
+    vi.stubEnv("RESCROW_MODEL", "");
+    delete process.env.OLLAMA_MODEL;
+    delete process.env.RESCROW_MODEL;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          models: [
+            { name: "qwen3-vl:8b" },
+            { name: "llama3.1:8b" },
+            { name: "gpt-oss:20b" },
+          ],
+        }),
+      ),
+    );
+    const { pickModel } = await import("./ollama");
+    expect(await pickModel()).toBe("gpt-oss:20b");
   });
 });

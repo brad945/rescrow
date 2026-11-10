@@ -456,6 +456,8 @@ export function applyTerms(
     agreementId: Id;
     terms: AgreementTerms;
     source: "model" | "fixture";
+    /** Why a live read fell back to the saved answer, logged as agent_flag. */
+    flag?: string;
   },
   clock: Clock = systemClock,
 ): Snapshot {
@@ -464,6 +466,15 @@ export function applyTerms(
   const artist = find(s.artists, agreement.artistId, "Artist");
   agreement.terms = args.terms;
   agreement.termsSource = args.source;
+  if (args.flag) {
+    log(
+      s,
+      clock,
+      "agent_flag",
+      `Live read of ${artist.name}'s agreement failed (${args.flag}); used the saved answer`,
+      { galleryId: agreement.galleryId, artistId: artist.id },
+    );
+  }
   log(
     s,
     clock,

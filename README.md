@@ -31,7 +31,7 @@ Demo data lives in `data/db.json` (gitignored), created from `src/lib/seed.ts` o
 
 ## The agent
 
-The agreement reader runs `gpt-oss:20b` locally through Ollama, so no contract text leaves the machine. It streams its answer to the screen as it writes.
+The agreement reader runs a local model through Ollama (`gpt-oss:20b` here), so no contract text leaves the machine. `POST /api/agent/read` takes `mode`: `"saved"` (default) returns the stored answer, `"live"` asks the model. With `?stream=1` it streams the model's reasoning and answer as it writes; `/present` uses that.
 
 The model can only answer in a fixed JSON shape, and every number travels with the clause it came from. Then a verifier (`src/lib/agent/verify.ts`) checks the model rather than trusting it:
 
@@ -43,13 +43,14 @@ If any check fails, the terms are marked for a person to confirm, and the escrow
 
 Try it on any agreement at `/lab`. Two samples are built in: one that only states the gallery's commission, and a letter with no payout deadline, which gets flagged.
 
-| Setting         | Default                  |                                                                  |
-| --------------- | ------------------------ | ---------------------------------------------------------------- |
-| `RESCROW_AGENT` | live                     | `fixture` uses cached answers for the three demo agreements only |
-| `RESCROW_MODEL` | `gpt-oss:20b`            | any Ollama model with structured output                          |
-| `OLLAMA_URL`    | `http://localhost:11434` |                                                                  |
+| Setting                    | Default                                 |                                                    |
+| -------------------------- | --------------------------------------- | -------------------------------------------------- |
+| `RESCROW_AGENT`            | live reads allowed                      | `fixture` turns live reads off; saved answers only |
+| `OLLAMA_MODEL`             | first of gpt-oss, qwen, llama installed | pin a model                                        |
+| `OLLAMA_URL`               | `http://localhost:11434`                |                                                    |
+| `RESCROW_AGENT_TIMEOUT_MS` | 60000                                   | after this a live read falls back                  |
 
-If Ollama isn't reachable, the demo agreements fall back to cached answers and the UI says so.
+If a live read fails (Ollama down, too slow, bad output), it falls back to the saved answer, logs an `agent_flag` activity with the reason, and the screen labels the source.
 
 ## Design decisions
 
