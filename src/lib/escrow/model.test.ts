@@ -58,7 +58,14 @@ function start(clock: Clock): Snapshot {
 }
 
 type Counts = Record<
-  "sell" | "pay" | "partial" | "cancel" | "time" | "fail" | "refused",
+  | "sell"
+  | "pay"
+  | "partial"
+  | "cancel"
+  | "covered"
+  | "time"
+  | "fail"
+  | "refused",
   number
 >;
 
@@ -100,6 +107,19 @@ function violations(prev: Snapshot, s: Snapshot): string[] {
       holds.some((h: EscrowHold) => h.status === "locked")
     ) {
       out.push(`sale ${sale.id} is paid but still has locked holds`);
+    }
+  }
+
+  // A cancelled sale's buyer gets back exactly what they paid.
+  for (const sale of s.sales.filter((x) => x.status === "cancelled")) {
+    const r = s.refunds.find((x) => x.saleId === sale.id);
+    const back = r
+      ? r.fromTrustCents + r.fromOperatingCents + r.coveredByGalleryCents
+      : -1;
+    if (back !== paidSoFar(s, sale.id)) {
+      out.push(
+        `buyer of ${sale.id} refunded ${back}, paid ${paidSoFar(s, sale.id)}`,
+      );
     }
   }
 
@@ -183,6 +203,7 @@ function run(seed: number, counts: Counts) {
         if (!sale) continue;
         s = cancelSale(s, { saleId: sale.id }, clock).snapshot;
         counts.cancel++;
+        if (s.refunds.at(-1)!.coveredByGalleryCents > 0) counts.covered++;
       } else if (roll < 0.98) {
         advanceDays(Math.floor(rand() * 25));
         s = releaseDueHolds(s, clock);
@@ -211,6 +232,7 @@ describe("model-based: random interleavings keep every invariant", () => {
       pay: 0,
       partial: 0,
       cancel: 0,
+      covered: 0,
       time: 0,
       fail: 0,
       refused: 0,
@@ -219,7 +241,9 @@ describe("model-based: random interleavings keep every invariant", () => {
     // Coverage gate: a generator that never reaches a branch proves nothing
     // about it, so each kind of step must actually have happened.
     for (const [kind, n] of Object.entries(counts)) {
-      expect(n, `${kind} never exercised`).toBeGreaterThan(10);
+      expect(n, `${kind} exercised too rarely`).toBeGreaterThan(
+        kind === "covered" ? 2 : 10,
+      );
     }
   });
 

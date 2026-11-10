@@ -161,7 +161,8 @@ export type ActivityKind =
   | "creditor_claim"
   | "agent_flag"
   | "artwork_returned"
-  | "trust_move_refused";
+  | "trust_move_refused"
+  | "gallery_covered_refund";
 
 export interface Activity {
   id: Id;
@@ -186,6 +187,27 @@ export interface Snapshot {
   activity: Activity[];
   /** Double-entry journal kept beside the records above; see lib/escrow/journal.ts. */
   journal: JournalEntry[];
+  /** One record per cancelled sale: where the buyer's money came back from. */
+  refunds: Refund[];
+}
+
+/**
+ * A cancelled sale's refund. The buyer always gets back exactly what they
+ * paid: the artist's locked share from trust, the gallery's part from
+ * operating, and any share already paid to the artist on its deadline also
+ * from operating (the artist keeps it; the gallery covers it).
+ */
+export interface Refund {
+  id: Id;
+  saleId: Id;
+  galleryId: Id;
+  buyerName: string;
+  fromTrustCents: Cents;
+  fromOperatingCents: Cents;
+  coveredByGalleryCents: Cents;
+  /** Trust holds returned to the buyer. */
+  holdIds: Id[];
+  at: Timestamp;
 }
 
 /**

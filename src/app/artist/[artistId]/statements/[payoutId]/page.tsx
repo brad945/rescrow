@@ -145,9 +145,23 @@ export default function StatementPage() {
         <p className="mt-8 border-t border-line pt-4 text-xs leading-relaxed text-muted">
           Each amount above was moved to {gallery?.name}&apos;s artist trust
           account at Ramp the moment the buyer&apos;s payment arrived, and
-          released to you the day the sale was paid in full. Under New York Arts
-          and Cultural Affairs Law section 12.01, proceeds owed to an artist are
-          trust funds and are not the gallery&apos;s property.
+          released to you{" "}
+          {payout.reason === "deadline"
+            ? "on the payout deadline in your agreement, while the buyer was still paying"
+            : payout.reason === "insolvency"
+              ? `when ${gallery?.name} became insolvent: trust money is not part of the gallery's estate, so it went to you, not to creditors`
+              : "the day the sale was paid in full"}
+          . Under New York Arts and Cultural Affairs Law section 12.01, proceeds
+          owed to an artist are trust funds and are not the gallery&apos;s
+          property.
+          {sale?.status === "cancelled" && (
+            <>
+              {" "}
+              The buyer later cancelled. You keep this payment: the gallery
+              refunded the buyer this share from its own operating cash, not
+              from trust.
+            </>
+          )}
         </p>
       </article>
     </main>

@@ -58,7 +58,50 @@ export function reconcile(s: Snapshot, galleryId: Id): Reconciliation {
   const refundedHolds = sum(holds.filter((h) => h.status === "refunded"));
   const payouts = s.payouts.filter((p) => p.galleryId === galleryId);
   const paidToArtistsCents = sum(payouts);
-  const refundedToBuyersCents = refundedHolds + galleryPartsRefunded;
+  // Refund records: each cancelled sale has one, and it must give the buyer
+  // back exactly what they paid, with its trust part matching the holds.
+  const refunds = s.refunds.filter((r) => r.galleryId === galleryId);
+  const coveredCents = sum(
+    refunds.map((r) => ({ amountCents: r.coveredByGalleryCents })),
+  );
+  for (const saleId of cancelled) {
+    const sale = s.sales.find((x) => x.id === saleId)!;
+    if (sale.galleryId !== galleryId) continue;
+    const mine = refunds.filter((r) => r.saleId === saleId);
+    if (mine.length !== 1) {
+      breaks.push(
+        `Cancelled sale ${saleId} has ${mine.length} refund records, expected 1`,
+      );
+      continue;
+    }
+    const r = mine[0];
+    const paidIn = sum(payments.filter((p) => p.saleId === saleId));
+    const back =
+      r.fromTrustCents + r.fromOperatingCents + r.coveredByGalleryCents;
+    if (back !== paidIn) {
+      breaks.push(
+        `Buyer of ${saleId} paid ${formatCents(paidIn)} but was refunded ${formatCents(back)}`,
+      );
+    }
+    const trustBack = sum(
+      holds.filter((h) => h.saleId === saleId && h.status === "refunded"),
+    );
+    if (trustBack !== r.fromTrustCents) {
+      breaks.push(
+        `Refund ${r.id} says ${formatCents(r.fromTrustCents)} came from trust, but refunded holds total ${formatCents(trustBack)}`,
+      );
+    }
+    const kept = sum(
+      holds.filter((h) => h.saleId === saleId && h.status === "paid"),
+    );
+    if (kept !== r.coveredByGalleryCents) {
+      breaks.push(
+        `Refund ${r.id} covers ${formatCents(r.coveredByGalleryCents)} for shares the artist kept, but those total ${formatCents(kept)}`,
+      );
+    }
+  }
+  const refundedToBuyersCents =
+    refundedHolds + galleryPartsRefunded + coveredCents;
   const claimedByCreditorsCents = gallery.claimedByCreditorsCents ?? 0;
   const operatingCents = gallery.operatingBalanceCents;
   // Without a recorded opening balance the operating check would be true by
@@ -74,6 +117,7 @@ export function reconcile(s: Snapshot, galleryId: Id): Reconciliation {
     operatingCents -
       galleryParts +
       galleryPartsRefunded +
+      coveredCents +
       claimedByCreditorsCents;
 
   if (paidToArtistsCents !== paidHolds) {
@@ -89,6 +133,7 @@ export function reconcile(s: Snapshot, galleryId: Id): Reconciliation {
     openingCents +
     galleryParts -
     galleryPartsRefunded -
+    coveredCents -
     claimedByCreditorsCents;
   if (operatingCents !== expectedOperating) {
     breaks.push(

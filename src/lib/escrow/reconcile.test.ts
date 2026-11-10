@@ -6,6 +6,7 @@ import { createSeed, FIXTURE_TERMS } from "@/lib/seed";
 import type { Snapshot } from "@/types";
 import {
   applyTerms,
+  cancelSale,
   createSale,
   declareInsolvency,
   receivePayment,
@@ -147,6 +148,31 @@ const PLANTS: [string, (s: Snapshot) => void, RegExp][] = [
         ref: null,
       }),
     /Journal trust for art_ines/,
+  ],
+  [
+    "a refund record understates what came from trust",
+    (s) => {
+      const c = clock();
+      const sale = s.sales.find(
+        (x) => x.status === "open" && x.artworkId === "wrk_orchard",
+      )!;
+      const after = cancelSale(s, { saleId: sale.id }, c).snapshot;
+      after.refunds[0].fromTrustCents -= 1;
+      Object.assign(s, after);
+    },
+    /says .* came from trust, but refunded holds total/,
+  ],
+  [
+    "a cancelled sale loses its refund record",
+    (s) => {
+      const sale = s.sales.find(
+        (x) => x.status === "open" && x.artworkId === "wrk_orchard",
+      )!;
+      const after = cancelSale(s, { saleId: sale.id }, clock()).snapshot;
+      after.refunds = [];
+      Object.assign(s, after);
+    },
+    /has 0 refund records, expected 1/,
   ],
   [
     "the opening balance is missing",

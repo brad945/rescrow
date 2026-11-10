@@ -24,6 +24,7 @@ const KEYS: (keyof Snapshot)[] = [
   "payouts",
   "activity",
   "journal",
+  "refunds",
 ];
 
 function isSnapshot(value: unknown): value is Snapshot {

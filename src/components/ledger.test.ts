@@ -95,11 +95,13 @@ describe("ledgerFor: deadline payouts and cancellations after them", () => {
     expect(payout.description).toBe("Deadline payout from artist trust");
     expect(payout.amountCents).toBe(-400_000);
 
-    // $8,000 paid: Ines kept her $4,000 (paid at the deadline); the gallery
-    // refunds its own $4,000 from operating; nothing comes out of trust.
+    // $8,000 paid: Ines keeps her $4,000 (paid at the deadline). The buyer
+    // still gets all $8,000 back: the gallery's own $4,000 plus the $4,000 it
+    // covers for Ines, both from operating. Nothing comes out of trust.
     const refund = rows.find((r) => r.kind === "refund")!;
-    expect(refund.amountCents).toBe(-400_000);
+    expect(refund.amountCents).toBe(-800_000);
     expect(refund.trustCents).toBe(0);
-    expect(refund.operatingCents).toBe(-400_000);
+    expect(refund.operatingCents).toBe(-800_000);
+    expect(refund.description).toMatch(/gallery covers/);
   });
 });

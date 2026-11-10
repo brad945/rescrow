@@ -575,9 +575,11 @@ export function cancelSale(
   const gallery = find(s.galleries, sale.galleryId, "Gallery");
   assertActive(gallery);
 
-  // The buyer gets back the locked artist share (from trust) and the gallery's
-  // part of every payment (from operating). A share already paid to the artist
-  // on its agreement deadline stays with the artist.
+  // The buyer gets back exactly what they paid:
+  // - the artist's locked share, from trust (releaseTrust to the buyer);
+  // - the gallery's part of every payment, from operating;
+  // - any share already paid to the artist on its deadline: the artist keeps
+  //   it, and the gallery covers it from operating. Never from another hold.
   const holds = s.holds.filter(
     (h) => h.saleId === sale.id && h.status === "locked",
   );
@@ -588,6 +590,14 @@ export function cancelSale(
       const hold = s.holds.find((h) => h.paymentId === p.id);
       return sum + p.amountCents - (hold?.amountCents ?? 0);
     }, 0);
+  const covered = s.holds
+    .filter((h) => h.saleId === sale.id && h.status === "paid")
+    .reduce((sum, h) => sum + h.amountCents, 0);
+  if (gallery.operatingBalanceCents < galleryPart + covered) {
+    throw new EscrowError(
+      `${gallery.name} can't refund ${sale.buyerName}: it needs ${formatCents(galleryPart + covered)} from operating and has ${formatCents(gallery.operatingBalanceCents)}`,
+    );
+  }
   post(
     s,
     entry(
@@ -595,14 +605,31 @@ export function cancelSale(
       clock.now(),
       "OPERATING_TO_BUYER",
       [
-        { account: acct.operating(gallery.id), cents: -galleryPart },
-        { account: acct.buyer(gallery.id, sale.id), cents: galleryPart },
+        {
+          account: acct.operating(gallery.id),
+          cents: -(galleryPart + covered),
+        },
+        {
+          account: acct.buyer(gallery.id, sale.id),
+          cents: galleryPart + covered,
+        },
       ],
       sale.id,
     ),
   );
-  gallery.operatingBalanceCents -= galleryPart;
+  gallery.operatingBalanceCents -= galleryPart + covered;
   const lockedTotal = releaseTrust(s, holds, "buyer", clock);
+  s.refunds.push({
+    id: clock.id("rf"),
+    saleId: sale.id,
+    galleryId: gallery.id,
+    buyerName: sale.buyerName,
+    fromTrustCents: lockedTotal,
+    fromOperatingCents: galleryPart,
+    coveredByGalleryCents: covered,
+    holdIds: holds.map((h) => h.id),
+    at: clock.now(),
+  });
 
   sale.status = "cancelled";
   sale.cancelledAt = clock.now();
@@ -623,6 +650,15 @@ export function cancelSale(
       "hold_refunded",
       `Refunded ${formatCents(lockedTotal)} from artist trust to ${sale.buyerName}`,
       { ...ref, amountCents: lockedTotal },
+    );
+  }
+  if (covered > 0) {
+    log(
+      s,
+      clock,
+      "gallery_covered_refund",
+      `${gallery.name} refunded ${sale.buyerName} the ${formatCents(covered)} already paid to the artist on the deadline, from its own operating cash. The artist keeps it`,
+      { ...ref, amountCents: covered },
     );
   }
   return { snapshot: s, sale };

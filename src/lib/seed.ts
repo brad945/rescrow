@@ -89,7 +89,7 @@ export const FIXTURE_TERMS: Record<string, AgreementTerms> = {
 };
 
 export function createSeed(): Snapshot {
-  const records: Omit<Snapshot, "journal"> = {
+  const records: Omit<Snapshot, "journal" | "refunds"> = {
     galleries: [
       {
         id: "gal_lowline",
@@ -337,5 +337,5 @@ export function createSeed(): Snapshot {
       },
     ],
   };
-  return { ...records, journal: openingJournal(records) };
+  return { ...records, journal: openingJournal(records), refunds: [] };
 }

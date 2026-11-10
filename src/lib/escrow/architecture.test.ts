@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 const SRC = path.resolve(__dirname, "../..");
 
 const WRITE =
-  /(\.status\s*=(?!=)|payouts\.push\(|operatingBalanceCents\s*[-+]?=(?!=)|\.claimedByCreditorsCents\s*=(?!=)|holds\.push\(|journal\.push\(|\.amountCents\s*[-+]?=(?!=))/;
+  /(\.status\s*=(?!=)|payouts\.push\(|operatingBalanceCents\s*[-+]?=(?!=)|\.claimedByCreditorsCents\s*=(?!=)|holds\.push\(|journal\.push\(|refunds\.push\(|\.amountCents\s*[-+]?=(?!=))/;
 
 function files(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -63,8 +63,10 @@ const MANIFEST = [
   // Unsold consigned works go back to their artists.
   'lib/escrow/engine.ts declareInsolvency: for (const w of works) w.status = "returned";',
   // Cancel: the gallery refunds its own part from operating.
-  "lib/escrow/engine.ts cancelSale: gallery.operatingBalanceCents -= galleryPart;",
+  "lib/escrow/engine.ts cancelSale: gallery.operatingBalanceCents -= galleryPart + covered;",
   'lib/escrow/engine.ts cancelSale: sale.status = "cancelled";',
+  // The refund record: what came back from trust and from operating.
+  "lib/escrow/engine.ts cancelSale: s.refunds.push({",
   'lib/escrow/engine.ts cancelSale: artwork.status = "consigned";',
 ];
 

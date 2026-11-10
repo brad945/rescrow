@@ -252,8 +252,10 @@ export function postTrustRelease(s: Snapshot, e: JournalEntry | null): void {
  * history (payments split, payouts made) replayed in time order through the
  * same rules as live postings.
  */
-export function openingJournal(s: Omit<Snapshot, "journal">): JournalEntry[] {
-  const out: Snapshot = { ...s, journal: [] } as Snapshot;
+export function openingJournal(
+  s: Omit<Snapshot, "journal" | "refunds">,
+): JournalEntry[] {
+  const out = { ...s, journal: [], refunds: [] } as Snapshot;
   let n = 0;
   const id = () => `je_seed_${++n}`;
 

@@ -170,6 +170,15 @@ describe("the recorded demo, end to end", () => {
     const sale = s.sales.filter((x) => x.artworkId === "wrk_orchard").at(-1)!;
     s = await call("/api/demo/cancel", { saleId: sale.id });
     expect(stepFor(s).index).toBe(6);
+    const r = s.refunds.at(-1)!;
+    expect(
+      r.fromTrustCents + r.fromOperatingCents + r.coveredByGalleryCents,
+    ).toBe(
+      s.payments
+        .filter((p) => p.saleId === sale.id)
+        .reduce((a, p) => a + p.amountCents, 0),
+    );
+    expect(r.coveredByGalleryCents).toBe(0);
     balanced(s);
   });
 

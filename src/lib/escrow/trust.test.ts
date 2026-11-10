@@ -275,3 +275,48 @@ describe("attemptTrustMove: the gallery tries to spend trust", () => {
     ).toThrow(/Nothing in trust/);
   });
 });
+
+describe("refund records: the buyer is made whole", () => {
+  it("cancel after a deadline payout: buyer gets every cent back, artist keeps the share, trust untouched", () => {
+    const clock = clockAt("2026-11-10T15:00:00.000Z");
+    const { s: mid, saleId } = midSale(clock);
+    clock.set("2027-01-10T15:00:00.000Z"); // past both 60-day deadlines
+    const due = releaseDueHolds(mid, clock);
+    const s = cancelSale(due, { saleId }, clock).snapshot;
+    const r = s.refunds.find((x) => x.saleId === saleId)!;
+    expect(r).toMatchObject({
+      fromTrustCents: 0,
+      fromOperatingCents: 800_000,
+      coveredByGalleryCents: 800_000,
+    });
+    const ines = s.payouts
+      .filter((p) => p.artistId === "art_ines")
+      .reduce((a, p) => a + p.amountCents, 0);
+    expect(ines).toBe(800_000);
+    expect(s.activity.some((a) => a.kind === "gallery_covered_refund")).toBe(
+      true,
+    );
+    expectBalanced(s);
+  });
+
+  it("refuses a refund operating can't cover, and changes nothing", () => {
+    const clock = clockAt("2026-11-10T15:00:00.000Z");
+    const { s: mid, saleId } = midSale(clock);
+    const poor = structuredClone(mid);
+    const g = poor.galleries[0];
+    g.operatingBalanceCents = 100;
+    const before = structuredClone(poor);
+    expect(() => cancelSale(poor, { saleId }, clock)).toThrow(/can't refund/);
+    expect(poor).toEqual(before);
+  });
+
+  it("refuses to cancel twice", () => {
+    const clock = clockAt("2026-11-10T15:00:00.000Z");
+    const { s: mid, saleId } = midSale(clock);
+    const once = cancelSale(mid, { saleId }, clock).snapshot;
+    expect(() => cancelSale(once, { saleId }, clock)).toThrow(
+      /Only open sales/,
+    );
+    expect(once.refunds).toHaveLength(1);
+  });
+});
