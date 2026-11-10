@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #f6f3ee;
+  --card: #fffdf9;
+  --ink: #1c1a17;
+  --muted: #6f6a62;
+  --line: #e4ded3;
+  --lock: #2f5d50;
+  --lock-soft: #e3eee9;
+  --gallery: #8a5a2b;
+  --gallery-soft: #f3e8da;
+  --paid: #3d5a80;
+  --paid-soft: #e4ebf3;
+  --danger: #a23b2c;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-lock: var(--lock);
+  --color-lock-soft: var(--lock-soft);
+  --color-gallery: var(--gallery);
+  --color-gallery-soft: var(--gallery-soft);
+  --color-paid: var(--paid);
+  --color-paid-soft: var(--paid-soft);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-fraunces);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.num {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}

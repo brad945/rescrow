@@ -1,0 +1,171 @@
+// Shared data shapes for Rescrow. All money is integer cents.
+// Owned by the backend lane: ask before adding or changing fields.
+
+export type Id = string;
+export type Cents = number;
+/** ISO 8601 timestamp */
+export type Timestamp = string;
+
+export interface Gallery {
+  id: Id;
+  name: string;
+  city: string;
+  /** True once the gallery has linked its operating bank account through Ramp. */
+  rampConnected: boolean;
+  /** Money the gallery is free to spend (excludes anything held for artists). */
+  operatingBalanceCents: Cents;
+}
+
+export interface Artist {
+  id: Id;
+  name: string;
+  email: string;
+  galleryId: Id;
+}
+
+export type ArtworkStatus = "consigned" | "sold" | "returned";
+
+export interface Artwork {
+  id: Id;
+  title: string;
+  year: number;
+  medium: string;
+  artistId: Id;
+  galleryId: Id;
+  priceCents: Cents;
+  status: ArtworkStatus;
+  /** Two hex colors used to render a placeholder swatch for the piece. */
+  swatch: [string, string];
+}
+
+/** Terms the agent extracts from a consignment agreement. */
+export interface AgreementTerms {
+  /** Artist share in basis points (5000 = 50%). */
+  artistShareBps: number;
+  /** Days after the buyer pays that the artist must be paid. */
+  payoutDays: number;
+  /** Plain language notes on anything unusual (discount caps, framing costs). */
+  notes: string[];
+  /** Short quotes from the agreement that justify the numbers above. */
+  citations: string[];
+}
+
+export interface ConsignmentAgreement {
+  id: Id;
+  galleryId: Id;
+  artistId: Id;
+  signedOn: Timestamp;
+  /** Full agreement text as uploaded. */
+  text: string;
+  /** Null until the agent has read the agreement. */
+  terms: AgreementTerms | null;
+  /** Which path produced the terms. */
+  termsSource: "model" | "fixture" | null;
+}
+
+export type SaleStatus = "open" | "paid" | "cancelled";
+
+export interface Sale {
+  id: Id;
+  artworkId: Id;
+  galleryId: Id;
+  artistId: Id;
+  buyerName: string;
+  priceCents: Cents;
+  /** Number of installments the buyer agreed to (1 = paid in full). */
+  installments: number;
+  status: SaleStatus;
+  createdAt: Timestamp;
+}
+
+export type PaymentMethod = "wire" | "ach" | "card";
+
+/** Money landing in the gallery's Ramp connected account. */
+export interface IncomingPayment {
+  id: Id;
+  saleId: Id;
+  galleryId: Id;
+  amountCents: Cents;
+  method: PaymentMethod;
+  receivedAt: Timestamp;
+}
+
+export type HoldStatus = "locked" | "paid" | "refunded";
+
+/** The artist's share of one incoming payment, locked away from the gallery. */
+export interface EscrowHold {
+  id: Id;
+  saleId: Id;
+  paymentId: Id;
+  artistId: Id;
+  galleryId: Id;
+  amountCents: Cents;
+  status: HoldStatus;
+  lockedAt: Timestamp;
+  releasedAt: Timestamp | null;
+}
+
+export interface Payout {
+  id: Id;
+  artistId: Id;
+  galleryId: Id;
+  amountCents: Cents;
+  holdIds: Id[];
+  paidAt: Timestamp;
+}
+
+export type ActivityKind =
+  | "sale_created"
+  | "payment_received"
+  | "hold_locked"
+  | "payout_sent"
+  | "sale_cancelled"
+  | "hold_refunded"
+  | "agreement_read"
+  | "reset";
+
+export interface Activity {
+  id: Id;
+  kind: ActivityKind;
+  at: Timestamp;
+  galleryId: Id | null;
+  artistId: Id | null;
+  message: string;
+  amountCents: Cents | null;
+}
+
+/** Everything the UI needs, returned by GET /api/state. */
+export interface Snapshot {
+  galleries: Gallery[];
+  artists: Artist[];
+  artworks: Artwork[];
+  agreements: ConsignmentAgreement[];
+  sales: Sale[];
+  payments: IncomingPayment[];
+  holds: EscrowHold[];
+  payouts: Payout[];
+  activity: Activity[];
+}
+
+// Request bodies for the demo routes.
+
+export interface CreateSaleRequest {
+  artworkId: Id;
+  buyerName: string;
+  installments: number;
+}
+
+export interface ReceivePaymentRequest {
+  saleId: Id;
+  /** Defaults to the next installment amount when omitted. */
+  amountCents?: Cents;
+  method?: PaymentMethod;
+}
+
+export interface CancelSaleRequest {
+  saleId: Id;
+}
+
+export interface ReadAgreementRequest {
+  agreementId: Id;
+}
