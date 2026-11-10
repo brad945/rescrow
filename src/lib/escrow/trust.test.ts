@@ -340,3 +340,34 @@ describe("refund records: the buyer is made whole", () => {
     expect(once.refunds).toHaveLength(1);
   });
 });
+
+describe("cancel after a deadline has passed, before anything polled", () => {
+  it("pays the overdue share to the artist first, then refunds the buyer in full", () => {
+    // Theo's seeded share is due 4 days after the seed time; cancel 5 days on.
+    const clock = clockAt("2026-11-14T16:41:12.000Z");
+    const s = cancelSale(
+      createSeed(),
+      { saleId: "sale_lamps" },
+      clock,
+    ).snapshot;
+    const hold = s.holds.find((h) => h.id === "hold_lamps_1")!;
+    expect(hold.status).toBe("paid");
+    const r = s.refunds.find((x) => x.saleId === "sale_lamps")!;
+    expect(r.fromTrustCents).toBe(0);
+    expect(r.coveredByGalleryCents).toBe(240_000);
+    expect(r.fromOperatingCents + r.coveredByGalleryCents).toBe(400_000);
+    expectBalanced(s);
+  });
+
+  it("a hold refunded outside a cancellation is a reconciliation break", () => {
+    const clock = clockAt("2026-11-10T15:00:00.000Z");
+    const { s } = midSale(clock);
+    const sneaky = structuredClone(s);
+    const hold = sneaky.holds.find((h) => h.status === "locked")!;
+    releaseTrust(sneaky, [hold], "buyer", clock);
+    const r = reconcile(sneaky, G);
+    expect(r.breaks.join(" ")).toMatch(
+      /was refunded but its sale .* was never cancelled/,
+    );
+  });
+});

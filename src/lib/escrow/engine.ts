@@ -695,7 +695,9 @@ export function cancelSale(
   args: { saleId: Id },
   clock: Clock = systemClock,
 ): { snapshot: Snapshot; sale: Sale } {
-  const s = structuredClone(input);
+  // A share already past its deadline belongs to the artist before anything
+  // is refunded: pay it first, exactly as the next poll would have.
+  const s = structuredClone(releaseDueHolds(input, clock));
   const sale = find(s.sales, args.saleId, "Sale");
   if (sale.status !== "open") {
     throw new EscrowError(`Only open sales can be cancelled`);

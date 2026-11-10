@@ -100,7 +100,7 @@ export const SEED_NOW = "2026-11-09T16:41:12.000Z";
  * Bumped whenever the seed changes shape or content, so a data file written by
  * an older build is reseeded instead of loaded.
  */
-export const SEED_VERSION = 3;
+export const SEED_VERSION = 4;
 
 export function createSeed(now: string = SEED_NOW): Snapshot {
   const shift = Date.parse(now) - Date.parse(SEED_NOW);
@@ -245,6 +245,7 @@ export function createSeed(now: string = SEED_NOW): Snapshot {
         priceCents: 1_800_000,
         installments: 1,
         artistShareBps: 5000,
+        payoutDays: 30,
         status: "paid",
         createdAt: t("2026-10-14T15:20:44.000Z"),
       },
@@ -257,6 +258,7 @@ export function createSeed(now: string = SEED_NOW): Snapshot {
         priceCents: 1_200_000,
         installments: 3,
         artistShareBps: 6000,
+        payoutDays: 14,
         status: "open",
         createdAt: t("2026-10-28T18:05:09.000Z"),
       },

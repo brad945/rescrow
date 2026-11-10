@@ -78,6 +78,14 @@ export function reconcile(s: Snapshot, galleryId: Id): Reconciliation {
   const coveredCents = sum(
     refunds.map((r) => ({ amountCents: r.coveredByGalleryCents })),
   );
+  // A hold can only be refunded to the buyer as part of cancelling its sale.
+  for (const h of holds.filter((x) => x.status === "refunded")) {
+    if (!cancelled.has(h.saleId)) {
+      breaks.push(
+        `Hold ${h.id} was refunded but its sale ${h.saleId} was never cancelled`,
+      );
+    }
+  }
   for (const saleId of cancelled) {
     const sale = s.sales.find((x) => x.id === saleId)!;
     if (sale.galleryId !== galleryId) continue;
