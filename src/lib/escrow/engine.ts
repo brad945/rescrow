@@ -1,5 +1,7 @@
 import type {
   Activity,
+  Gallery,
+  Timestamp,
   ActivityKind,
   AgreementTerms,
   Cents,
@@ -63,6 +65,87 @@ export function termsFor(s: Snapshot, artistId: Id): AgreementTerms {
   return agreement.terms;
 }
 
+/** Refuses any change at a gallery that has gone insolvent. */
+function assertActive(gallery: Gallery): void {
+  if (gallery.status === "insolvent") {
+    throw new EscrowError(
+      `${gallery.name} is insolvent; sales and refunds now go through its administrator`,
+    );
+  }
+}
+
+function addDays(iso: Timestamp, days: number): Timestamp {
+  return new Date(Date.parse(iso) + days * 86_400_000).toISOString();
+}
+
+/**
+ * The only way money leaves the artist trust. It can go to the artist or back
+ * to the buyer who paid it, and nowhere else: not to the gallery's operating
+ * account, not to its creditors. Mutates s; returns the total released.
+ */
+export function releaseTrust(
+  s: Snapshot,
+  holds: EscrowHold[],
+  to: "artist" | "buyer",
+  clock: Clock,
+): Cents {
+  if (to !== "artist" && to !== "buyer") {
+    throw new EscrowError(
+      `Trust funds can only go to the artist or back to the buyer, not to ${String(to)}`,
+    );
+  }
+  const at = clock.now();
+  let total = 0;
+  for (const h of holds) {
+    const live = s.holds.find((x) => x.id === h.id);
+    if (!live || live.status !== "locked") {
+      throw new EscrowError(`Hold ${h.id} is not in trust`);
+    }
+    live.status = to === "artist" ? "paid" : "refunded";
+    live.releasedAt = at;
+    total += live.amountCents;
+  }
+  return total;
+}
+
+/** Releases one sale's holds to its artist and records a single payout. Mutates s. */
+function payOut(
+  s: Snapshot,
+  holds: EscrowHold[],
+  clock: Clock,
+  kind: "payout_sent" | "deadline_payout",
+  reason: string,
+): void {
+  if (holds.length === 0) return;
+  const sale = find(s.sales, holds[0].saleId, "Sale");
+  const artist = find(s.artists, sale.artistId, "Artist");
+  const artwork = find(s.artworks, sale.artworkId, "Artwork");
+  const total = releaseTrust(s, holds, "artist", clock);
+  s.payouts.push({
+    id: clock.id("po"),
+    artistId: artist.id,
+    galleryId: sale.galleryId,
+    amountCents: total,
+    holdIds: holds.map((h) => h.id),
+    paidAt: clock.now(),
+  });
+  log(
+    s,
+    clock,
+    kind,
+    `Paid ${artist.name} ${formatCents(total)} for ${artwork.title}${reason}`,
+    { galleryId: sale.galleryId, artistId: artist.id, amountCents: total },
+  );
+}
+
+function groupBySale(holds: EscrowHold[]): EscrowHold[][] {
+  const groups = new Map<Id, EscrowHold[]>();
+  for (const h of holds) {
+    groups.set(h.saleId, [...(groups.get(h.saleId) ?? []), h]);
+  }
+  return [...groups.values()];
+}
+
 export function paidSoFar(s: Snapshot, saleId: Id): Cents {
   return s.payments
     .filter((p) => p.saleId === saleId)
@@ -101,6 +184,7 @@ export function createSale(
 ): { snapshot: Snapshot; sale: Sale } {
   const s = structuredClone(input);
   const artwork = find(s.artworks, args.artworkId, "Artwork");
+  assertActive(find(s.galleries, artwork.galleryId, "Gallery"));
   if (artwork.status !== "consigned") {
     throw new EscrowError(`${artwork.title} is not available for sale`);
   }
@@ -149,6 +233,7 @@ export function receivePayment(
 ): { snapshot: Snapshot; hold: EscrowHold } {
   const s = structuredClone(input);
   const sale = find(s.sales, args.saleId, "Sale");
+  assertActive(find(s.galleries, sale.galleryId, "Gallery"));
   if (sale.status !== "open") {
     throw new EscrowError(`Sale ${sale.id} is ${sale.status}`);
   }
@@ -192,6 +277,7 @@ export function receivePayment(
     status: "locked",
     lockedAt: at,
     releasedAt: null,
+    dueBy: addDays(at, termsFor(s, sale.artistId).payoutDays),
   };
   s.holds.push(hold);
 
@@ -221,35 +307,88 @@ export function receivePayment(
 
 /** Same day payout of every locked hold on a fully paid sale. Mutates s. */
 function payOutSale(s: Snapshot, saleId: Id, clock: Clock): void {
-  const sale = find(s.sales, saleId, "Sale");
-  const artist = find(s.artists, sale.artistId, "Artist");
-  const artwork = find(s.artworks, sale.artworkId, "Artwork");
   const holds = s.holds.filter(
     (h) => h.saleId === saleId && h.status === "locked",
   );
-  if (holds.length === 0) return;
+  payOut(s, holds, clock, "payout_sent", "");
+}
 
-  const at = clock.now();
-  const total = holds.reduce((sum, h) => sum + h.amountCents, 0);
-  for (const h of holds) {
-    h.status = "paid";
-    h.releasedAt = at;
+/**
+ * Pays out any share that has reached the deadline in its agreement while the
+ * sale is still being paid off. Returns the input unchanged when nothing is due.
+ */
+export function releaseDueHolds(
+  input: Snapshot,
+  clock: Clock = systemClock,
+): Snapshot {
+  const now = Date.parse(clock.now());
+  const due = (h: EscrowHold) =>
+    h.status === "locked" &&
+    h.dueBy !== undefined &&
+    Date.parse(h.dueBy) <= now;
+  if (!input.holds.some(due)) return input;
+  const s = structuredClone(input);
+  for (const group of groupBySale(s.holds.filter(due))) {
+    payOut(
+      s,
+      group,
+      clock,
+      "deadline_payout",
+      ", on the deadline in the agreement",
+    );
   }
-  s.payouts.push({
-    id: clock.id("po"),
-    artistId: artist.id,
-    galleryId: sale.galleryId,
-    amountCents: total,
-    holdIds: holds.map((h) => h.id),
-    paidAt: at,
-  });
+  return s;
+}
+
+/**
+ * The gallery fails. Its operating cash goes to creditors. Everything in the
+ * artist trust is paid to the artists, because trust funds were never the
+ * gallery's property. Calling it again changes nothing.
+ */
+export function declareInsolvency(
+  input: Snapshot,
+  args: { galleryId: Id },
+  clock: Clock = systemClock,
+): { snapshot: Snapshot } {
+  if (find(input.galleries, args.galleryId, "Gallery").status === "insolvent") {
+    return { snapshot: input };
+  }
+  const s = structuredClone(input);
+  const gallery = find(s.galleries, args.galleryId, "Gallery");
+  const claimed = gallery.operatingBalanceCents;
+  gallery.claimedByCreditorsCents =
+    (gallery.claimedByCreditorsCents ?? 0) + claimed;
+  gallery.operatingBalanceCents = 0;
+  gallery.status = "insolvent";
+  gallery.insolventAt = clock.now();
+
   log(
     s,
     clock,
-    "payout_sent",
-    `Paid ${artist.name} ${formatCents(total)} for ${artwork.title}`,
-    { galleryId: sale.galleryId, artistId: artist.id, amountCents: total },
+    "gallery_insolvent",
+    `${gallery.name} entered insolvency. Operating account frozen for the administrator`,
+    { galleryId: gallery.id },
   );
+  log(
+    s,
+    clock,
+    "creditor_claim",
+    `Creditors claimed ${formatCents(claimed)} of operating cash. Artist trust is not part of the estate`,
+    { galleryId: gallery.id, amountCents: claimed },
+  );
+  const locked = s.holds.filter(
+    (h) => h.galleryId === gallery.id && h.status === "locked",
+  );
+  for (const group of groupBySale(locked)) {
+    payOut(
+      s,
+      group,
+      clock,
+      "payout_sent",
+      ", out of trust after the gallery's insolvency",
+    );
+  }
+  return { snapshot: s };
 }
 
 export function cancelSale(
@@ -264,19 +403,23 @@ export function cancelSale(
   }
   const artwork = find(s.artworks, sale.artworkId, "Artwork");
   const gallery = find(s.galleries, sale.galleryId, "Gallery");
-  const at = clock.now();
+  assertActive(gallery);
 
-  // Buyer gets everything back: the locked artist share plus the gallery's part.
+  // The buyer gets back the locked artist share (from trust) and the gallery's
+  // part of every payment (from operating). A share already paid to the artist
+  // on its agreement deadline stays with the artist.
   const holds = s.holds.filter(
     (h) => h.saleId === sale.id && h.status === "locked",
   );
-  const lockedTotal = holds.reduce((sum, h) => sum + h.amountCents, 0);
   const paid = paidSoFar(s, sale.id);
-  gallery.operatingBalanceCents -= paid - lockedTotal;
-  for (const h of holds) {
-    h.status = "refunded";
-    h.releasedAt = at;
-  }
+  const galleryPart = s.payments
+    .filter((p) => p.saleId === sale.id)
+    .reduce((sum, p) => {
+      const hold = s.holds.find((h) => h.paymentId === p.id);
+      return sum + p.amountCents - (hold?.amountCents ?? 0);
+    }, 0);
+  gallery.operatingBalanceCents -= galleryPart;
+  const lockedTotal = releaseTrust(s, holds, "buyer", clock);
 
   sale.status = "cancelled";
   artwork.status = "consigned";

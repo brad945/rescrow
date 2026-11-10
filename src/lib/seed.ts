@@ -96,6 +96,9 @@ export function createSeed(): Snapshot {
         city: "New York, NY",
         rampConnected: true,
         operatingBalanceCents: 4_183_627,
+        // 4,183,627 less the gallery's share of the two seeded payments
+        // ($9,000 of Tidewater, $1,600 of Four Lamps installment 1).
+        openingBalanceCents: 3_123_627,
       },
     ],
     artists: [

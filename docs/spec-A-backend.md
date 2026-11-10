@@ -87,6 +87,8 @@ From then on, `createSale` and `receivePayment` throw ("Lowline Gallery is insol
 
 **Fallback:** if B hasn't wired beat 6 by 6 PM, the demo skips it and nothing else changes.
 
+> **Cut by Bradley (Nov 9):** no model calls. §4 (live agent) and §5 (Ramp feed polling) are off the plan. The agent stays on its saved answers, which `seed.test` checks quote the agreement word for word. Focus is the demo, the money logic, and beat 6.
+
 ## §4. Agent (`src/lib/agent/`)
 
 - **`mode: "saved"` (default):** the current fixture behavior. `/present` sends a bare `{ agreementId }`, so it's unchanged.

@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { POST as readAgreement } from "./agent/read/route";
 import { POST as cancel } from "./demo/cancel/route";
+import { POST as insolvency } from "./demo/insolvency/route";
 import { POST as pay } from "./demo/payment/route";
 import { POST as reset } from "./demo/reset/route";
 import { POST as sell } from "./demo/sale/route";
@@ -95,10 +96,49 @@ describe("demo API", () => {
       post({ artworkId: "wrk_salt", buyerName: "A", installments: 1 }),
     );
     await reset();
-    const s = await state().json();
+    const s = await (await state()).json();
     expect(s.sales).toHaveLength(2);
     expect(
       s.artworks.find((w: { id: string }) => w.id === "wrk_salt").status,
     ).toBe("consigned");
+  });
+
+  it("runs the insolvency beat: creditors take operating, artists are paid from trust", async () => {
+    await readAgreement(post({ agreementId: "agr_ines" }));
+    let res = await sell(
+      post({
+        artworkId: "wrk_orchard",
+        buyerName: "M. Ybarra",
+        installments: 3,
+      }),
+    );
+    const saleId = (await res.json()).sales.at(-1).id;
+    await pay(post({ saleId }));
+    await pay(post({ saleId, method: "ach" }));
+
+    res = await insolvency(post({ galleryId: "gal_lowline" }));
+    expect(res.status).toBe(200);
+    const s = await res.json();
+    expect(s.galleries[0].status).toBe("insolvent");
+    expect(s.galleries[0].operatingBalanceCents).toBe(0);
+    expect(
+      s.holds.filter((h: { status: string }) => h.status === "locked"),
+    ).toEqual([]);
+    const ines = s.payouts.filter(
+      (p: { artistId: string }) => p.artistId === "art_ines",
+    );
+    expect(ines.at(-1).amountCents).toBe(800_000);
+
+    res = await pay(post({ saleId }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/insolvent/);
+
+    res = await reset();
+    expect((await res.json()).galleries[0].status).toBeUndefined();
+  });
+
+  it("rejects an insolvency request with no gallery id", async () => {
+    const res = await insolvency(post({}));
+    expect(res.status).toBe(400);
   });
 });

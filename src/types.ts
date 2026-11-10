@@ -14,6 +14,13 @@ export interface Gallery {
   rampConnected: boolean;
   /** Money the gallery is free to spend (excludes anything held for artists). */
   operatingBalanceCents: Cents;
+  /** Operating cash before any sale recorded here; reconciliation starts from it. */
+  openingBalanceCents?: Cents;
+  /** Missing means active. Insolvent galleries can't take sales or payments. */
+  status?: "active" | "insolvent";
+  insolventAt?: Timestamp | null;
+  /** Operating cash handed to creditors when the gallery went insolvent. */
+  claimedByCreditorsCents?: Cents;
 }
 
 export interface Artist {
@@ -48,6 +55,12 @@ export interface AgreementTerms {
   notes: string[];
   /** Short quotes from the agreement that justify the numbers above. */
   citations: string[];
+  /** "needs_review" when a quote couldn't be found or disagrees with the numbers. */
+  confidence?: "high" | "needs_review";
+  /** Quotes the agent gave that do not appear in the agreement text. */
+  unverifiedCitations?: string[];
+  /** Local model that produced these terms on a live read. */
+  model?: string;
 }
 
 export interface ConsignmentAgreement {
@@ -90,6 +103,8 @@ export interface IncomingPayment {
   amountCents: Cents;
   method: PaymentMethod;
   receivedAt: Timestamp;
+  /** Bank feed transaction id; ingesting the same id twice is a no-op. */
+  rampTransactionId?: string;
 }
 
 export type HoldStatus = "locked" | "paid" | "refunded";
@@ -105,6 +120,8 @@ export interface EscrowHold {
   status: HoldStatus;
   lockedAt: Timestamp;
   releasedAt: Timestamp | null;
+  /** Latest date the agreement allows before this share must be paid (receipt + payout days). */
+  dueBy?: Timestamp;
 }
 
 export interface Payout {
@@ -124,7 +141,11 @@ export type ActivityKind =
   | "sale_cancelled"
   | "hold_refunded"
   | "agreement_read"
-  | "reset";
+  | "reset"
+  | "deadline_payout"
+  | "gallery_insolvent"
+  | "creditor_claim"
+  | "agent_flag";
 
 export interface Activity {
   id: Id;
@@ -170,4 +191,24 @@ export interface CancelSaleRequest {
 
 export interface ReadAgreementRequest {
   agreementId: Id;
+  /** "saved" (default) uses the stored answer; "live" asks the local model first. */
+  mode?: "saved" | "live";
+}
+
+export interface InsolvencyRequest {
+  galleryId: Id;
+}
+
+/** Proof that every cent received is in exactly one place. */
+export interface Reconciliation {
+  balanced: boolean;
+  openingCents: Cents;
+  receivedCents: Cents;
+  operatingCents: Cents;
+  trustCents: Cents;
+  paidToArtistsCents: Cents;
+  refundedToBuyersCents: Cents;
+  claimedByCreditorsCents: Cents;
+  /** Plain-language reasons the books don't balance; empty when they do. */
+  breaks: string[];
 }
