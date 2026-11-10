@@ -79,6 +79,30 @@ describe("readAgreement", () => {
     expect(error).toHaveBeenCalled();
   });
 
+  it("falls back on time when the model stalls mid-answer", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("RESCROW_AGENT_TIMEOUT_MS", "300");
+    // One chunk of reasoning, then silence: the stream never ends.
+    const stalled = new ReadableStream({
+      start(c) {
+        c.enqueue(
+          new TextEncoder().encode(
+            JSON.stringify({ message: { thinking: "Let me" } }) + "\n",
+          ),
+        );
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(stalled)),
+    );
+    const started = Date.now();
+    const result = await readAgreement(ines, "live");
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(result.source).toBe("fixture");
+    expect(result.fallbackReason).toMatch(/longer than 0.3s/);
+  });
+
   it("falls back when the model returns broken JSON", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal(

@@ -24,8 +24,8 @@ Return:
 
 Every quote must be copied character for character from the agreement: a single sentence or clause, no paraphrasing, no ellipses. If you cannot quote it, leave it out.`;
 
-// Long enough for a cold model load on a laptop; /api/agent/warm avoids that on camera.
-const TIMEOUT_MS = Number(process.env.RESCROW_AGENT_TIMEOUT_MS ?? 60_000);
+// A warm model answers in about 11s on a laptop; past this it falls back.
+const timeoutMs = () => Number(process.env.RESCROW_AGENT_TIMEOUT_MS ?? 45_000);
 
 /** Live callbacks while the model writes: its answer and its reasoning. */
 export interface StreamHandlers {
@@ -42,7 +42,7 @@ export async function extractTerms(
     system: SYSTEM_PROMPT,
     user: text,
     format: modelOutputJsonSchema,
-    timeoutMs: TIMEOUT_MS,
+    timeoutMs: timeoutMs(),
     ...handlers,
   });
   let raw: unknown;

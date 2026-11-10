@@ -10,7 +10,9 @@ const PREFERENCE = ["gpt-oss", "qwen", "llama"];
 export async function pickModel(): Promise<string> {
   const pinned = process.env.OLLAMA_MODEL ?? process.env.RESCROW_MODEL;
   if (pinned) return pinned;
-  const res = await fetch(`${OLLAMA_URL}/api/tags`);
+  const res = await fetch(`${OLLAMA_URL}/api/tags`, {
+    signal: AbortSignal.timeout(5_000),
+  });
   if (!res.ok) throw new Error(`Ollama returned ${res.status}`);
   const { models = [] } = (await res.json()) as { models?: { name: string }[] };
   for (const family of PREFERENCE) {
@@ -39,7 +41,18 @@ export async function chat(
 ): Promise<{ reply: string; model: string }> {
   const model = await pickModel();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), req.timeoutMs);
+  // A stalled model sends nothing, and an abort only surfaces on the next
+  // chunk. Racing every read against this promise makes the timeout exact.
+  let timedOut: () => void = () => {};
+  const deadline = new Promise<never>((_, reject) => {
+    timedOut = () =>
+      reject(new Error(`Model took longer than ${req.timeoutMs / 1000}s`));
+  });
+  deadline.catch(() => {}); // Observed below; avoid an unhandled rejection.
+  const timer = setTimeout(() => {
+    controller.abort();
+    timedOut();
+  }, req.timeoutMs);
   try {
     const res = await fetch(`${OLLAMA_URL}/api/chat`, {
       method: "POST",
@@ -62,11 +75,12 @@ export async function chat(
     }
 
     const reader = res.body.getReader();
+    deadline.catch(() => void reader.cancel().catch(() => {}));
     const decoder = new TextDecoder();
     let buffer = "";
     let reply = "";
     for (;;) {
-      const { done, value } = await reader.read();
+      const { done, value } = await Promise.race([reader.read(), deadline]);
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       let newline: number;
