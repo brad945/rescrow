@@ -4,11 +4,13 @@ import { useState } from "react";
 import type { Snapshot } from "@/types";
 import { galleryTotals } from "@/lib/escrow/engine";
 import { ledgerFor } from "@/components/ledger";
+import { GALLERY } from "@/components/story";
 import { Money, ref, stamp } from "@/components/ui";
 import { useTween } from "@/components/useTween";
 
 export function GalleryBalances({ snapshot }: { snapshot: Snapshot }) {
-  const gallery = snapshot.galleries[0];
+  const gallery =
+    snapshot.galleries.find((g) => g.id === GALLERY) ?? snapshot.galleries[0];
   const totals = galleryTotals(snapshot, gallery.id);
   const operating = useTween(totals.operatingCents);
   const trust = useTween(totals.lockedCents);
@@ -84,7 +86,7 @@ export function Ledger({
   limit?: number;
   artistId?: string;
 }) {
-  const rows = ledgerFor(snapshot, snapshot.galleries[0].id)
+  const rows = ledgerFor(snapshot, GALLERY)
     .filter((r) => !artistId || r.artistId === artistId)
     .slice(0, limit);
   // Rows already on screen at first render stay still; later ones flash once.

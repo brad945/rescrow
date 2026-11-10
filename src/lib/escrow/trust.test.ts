@@ -3,6 +3,7 @@ import { createSeed, FIXTURE_TERMS } from "@/lib/seed";
 import type { Snapshot } from "@/types";
 import {
   applyTerms,
+  attemptTrustMove,
   cancelSale,
   createSale,
   declareInsolvency,
@@ -223,5 +224,52 @@ describe("terms frozen at sale close", () => {
     for (const h of holds) expect(h.dueBy).toBe("2027-01-09T15:00:00.000Z");
     expect(after.sales.find((x) => x.id === saleId)!.payoutDays).toBe(60);
     expectBalanced(after);
+  });
+});
+
+describe("attemptTrustMove: the gallery tries to spend trust", () => {
+  for (const kind of ["rent", "creditor"] as const) {
+    it(`refuses ${kind}, logs it on Ines's feed, and moves nothing`, () => {
+      const clock = clockAt("2026-11-10T15:00:00.000Z");
+      const { s, saleId } = midSale(clock);
+      const { snapshot: after, refusal } = attemptTrustMove(
+        s,
+        { saleId, kind },
+        clock,
+      );
+      expect(refusal).toMatch(/Trust funds can only go to the artist/);
+      for (const k of ["galleries", "holds", "payments", "payouts"] as const) {
+        expect(after[k]).toEqual(s[k]);
+      }
+      expect(after.activity).toHaveLength(s.activity.length + 1);
+      const row = after.activity[0];
+      expect(row.kind).toBe("trust_move_refused");
+      expect(row.artistId).toBe("art_ines");
+      // Only the story sale's trust: Ines's $8,000, not Theo's seeded $2,400.
+      expect(row.amountCents).toBe(800_000);
+      expect(row.message).toMatch(/^Refused: .*\$8,000\.00.*Nothing moved$/);
+      expectBalanced(after);
+    });
+  }
+
+  it("has nothing to try before the first payment", () => {
+    const clock = clockAt("2026-11-10T15:00:00.000Z");
+    const s = applyTerms(
+      createSeed(),
+      {
+        agreementId: "agr_ines",
+        terms: FIXTURE_TERMS.agr_ines,
+        source: "fixture",
+      },
+      clock,
+    );
+    const { sale, snapshot } = createSale(
+      s,
+      { artworkId: "wrk_orchard", buyerName: "M", installments: 3 },
+      clock,
+    );
+    expect(() =>
+      attemptTrustMove(snapshot, { saleId: sale.id, kind: "rent" }, clock),
+    ).toThrow(/Nothing in trust/);
   });
 });

@@ -16,6 +16,7 @@ const LABEL: Partial<Record<ActivityKind, string>> = {
   creditor_claim: "Creditors",
   agent_flag: "Flag",
   artwork_returned: "Returned",
+  trust_move_refused: "Refused",
 };
 
 export function ActivityFeed({

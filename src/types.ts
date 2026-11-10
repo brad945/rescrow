@@ -160,7 +160,8 @@ export type ActivityKind =
   | "gallery_insolvent"
   | "creditor_claim"
   | "agent_flag"
-  | "artwork_returned";
+  | "artwork_returned"
+  | "trust_move_refused";
 
 export interface Activity {
   id: Id;
@@ -212,6 +213,16 @@ export interface ReadAgreementRequest {
 
 export interface InsolvencyRequest {
   galleryId: Id;
+}
+
+/**
+ * Demo: the gallery tries to move one sale's trust money somewhere it may not
+ * go, to pay rent from operating or to let a creditor sweep it. The attempt is
+ * always refused; the refusal is recorded and nothing moves.
+ */
+export interface TrustMoveRequest {
+  saleId: Id;
+  kind: "rent" | "creditor";
 }
 
 /** Proof that every cent received is in exactly one place. */

@@ -11,6 +11,7 @@ import type { Snapshot } from "@/types";
 import { stepFor } from "@/components/story";
 import { reconcile } from "@/lib/escrow/reconcile";
 import { POST as readAgreement } from "./agent/read/route";
+import { POST as attempt } from "./demo/attempt/route";
 import { POST as cancel } from "./demo/cancel/route";
 import { POST as insolvency } from "./demo/insolvency/route";
 import { POST as pay } from "./demo/payment/route";
@@ -25,6 +26,7 @@ const ROUTES: Record<string, (req: Request) => Promise<Response>> = {
   "/api/demo/cancel": cancel,
   "/api/demo/insolvency": insolvency,
   "/api/demo/reset": reset,
+  "/api/demo/attempt": attempt,
 };
 
 let dir: string;
@@ -130,6 +132,36 @@ describe("the recorded demo, end to end", () => {
     ).rejects.toThrow(/insolvent/);
     s = await call("/api/demo/reset");
     expect(stepFor(s).index).toBe(0);
+  });
+
+  it("G then B: the refused spend changes nothing, the ending is the same", async () => {
+    let { s } = await press(await call("/api/demo/reset"), 4);
+    const step = stepFor(s);
+    expect(step.attempt).toBeDefined();
+    const before = s;
+    s = await call(step.attempt!.path, step.attempt!.body);
+    expect(s.galleries).toEqual(before.galleries);
+    expect(s.holds).toEqual(before.holds);
+    expect(s.activity[0].kind).toBe("trust_move_refused");
+    expect(s.activity[0].artistId).toBe("art_ines");
+    expect(s.activity[0].amountCents).toBe(800_000);
+    balanced(s);
+
+    s = await call("/api/demo/insolvency", { galleryId: "gal_lowline" });
+    expect(s.galleries[0].claimedByCreditorsCents).toBe(4_983_627);
+    const ines = s.payouts
+      .filter((p) => p.artistId === "art_ines")
+      .reduce((a, p) => a + p.amountCents, 0);
+    expect(ines).toBe(800_000);
+    balanced(s);
+  });
+
+  it("G before any payment is a 400, not a crash", async () => {
+    const { s } = await press(await call("/api/demo/reset"), 2);
+    const sale = s.sales.at(-1)!;
+    await expect(
+      call("/api/demo/attempt", { saleId: sale.id, kind: "rent" }),
+    ).rejects.toThrow(/400 Nothing in trust/);
   });
 
   it("buyer cancels after payment one: refunded from trust, books balance", async () => {

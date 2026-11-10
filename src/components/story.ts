@@ -18,6 +18,8 @@ export type Step = {
   canCancel?: boolean;
   /** The gallery can be made to fail (key B) once money is in trust. */
   canFail?: boolean;
+  /** The gallery tries to spend the story sale's trust money (key G). */
+  attempt?: { path: string; body: unknown };
 };
 
 export const GALLERY = "gal_lowline";
@@ -127,5 +129,12 @@ export function stepFor(s: Snapshot): Step {
     },
     canCancel: n > 0,
     canFail: n > 0,
+    attempt:
+      n > 0
+        ? {
+            path: "/api/demo/attempt",
+            body: { saleId: sale.id, kind: "rent" },
+          }
+        : undefined,
   };
 }

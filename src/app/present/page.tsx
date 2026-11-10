@@ -63,6 +63,10 @@ export default function PresentPage() {
     if (step?.canCancel && sale && !busy)
       void act("/api/demo/cancel", { saleId: sale.id });
   }, [snapshot, step, busy, act]);
+  const attempt = useCallback(() => {
+    if (step?.attempt && !busy) void act(step.attempt.path, step.attempt.body);
+  }, [step, busy, act]);
+
   const fail = useCallback(() => {
     if (step?.canFail && !busy)
       void act("/api/demo/insolvency", { galleryId: GALLERY });
@@ -80,11 +84,13 @@ export default function PresentPage() {
         cancel();
       } else if (e.key === "b" || e.key === "B") {
         fail();
+      } else if (e.key === "g" || e.key === "G") {
+        attempt();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, reset, cancel, fail]);
+  }, [next, reset, cancel, fail, attempt]);
 
   if (!snapshot || !step) {
     return (
@@ -146,6 +152,17 @@ export default function PresentPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {step.attempt && (
+                    <button
+                      type="button"
+                      onClick={attempt}
+                      disabled={busy}
+                      className="rounded border border-line bg-card px-3 py-2 text-sm text-muted hover:text-danger disabled:opacity-40"
+                    >
+                      Gallery tries to spend trust{" "}
+                      <kbd className="num text-faint">G</kbd>
+                    </button>
+                  )}
                   {step.canFail && (
                     <button
                       type="button"
@@ -252,7 +269,7 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
   const feed = snapshot.activity
     .filter((a) => a.artistId === ARTIST)
     .slice(0, 4);
-  const gallery = snapshot.galleries[0];
+  const gallery = snapshot.galleries.find((g) => g.id === GALLERY)!;
   const failed = gallery.status === "insolvent";
   // Earliest date the agreement lets the gallery hold any of Ines's share.
   const dueBy = snapshot.holds
@@ -360,8 +377,13 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
                 {feed.map((a, i) => (
                   <li
                     key={a.id}
-                    className={`rounded-lg bg-card px-3 py-2 text-[12px] leading-snug ${i === 0 ? "slide-in" : ""}`}
+                    className={`rounded-lg px-3 py-2 text-[12px] leading-snug ${a.kind === "trust_move_refused" ? "border border-danger/30 bg-danger/5" : "bg-card"} ${i === 0 ? "slide-in" : ""}`}
                   >
+                    {a.kind === "trust_move_refused" && (
+                      <span className="mb-0.5 block text-[10px] font-semibold tracking-wide text-danger uppercase">
+                        Blocked by Rescrow
+                      </span>
+                    )}
                     {a.message}
                     <span className="num block text-[10px] text-faint">
                       {stamp(a.at)}

@@ -47,6 +47,10 @@ Cut the wait in editing if the read takes longer than about 10 seconds.
 
 > Buyers pay late, pay in installments, sometimes back out. The lock covers that gap, however long it is.
 
+Optional, about 10 seconds. Press `G` here, before the final wire:
+
+> Watch the gallery try to pay its rent out of the eight thousand held for Ines. Refused, with the reason, on her phone. Not a cent moved.
+
 `→` Final wire:
 
 > Last payment. The sale is complete, so Rescrow pays Ines out of the trust the same day, with a statement. Her agreement gave the gallery sixty days. She got paid the day the buyer finished paying.

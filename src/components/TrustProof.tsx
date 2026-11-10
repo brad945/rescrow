@@ -16,6 +16,10 @@ export function TrustProof({ snapshot }: { snapshot: Snapshot }) {
   const returned = snapshot.artworks.filter(
     (w) => w.galleryId === GALLERY && w.status === "returned",
   ).length;
+  // The most recent refused attempt to move trust money, if it is newer than
+  // anything else that happened (so it doesn't linger after the story moves on).
+  const latest = snapshot.activity.find((a) => a.galleryId === GALLERY);
+  const refused = latest?.kind === "trust_move_refused" ? latest : undefined;
 
   return (
     <div className="space-y-2">
@@ -42,7 +46,6 @@ export function TrustProof({ snapshot }: { snapshot: Snapshot }) {
       )}
       <div
         className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border px-4 py-2 text-[12px] ${r.balanced ? "border-trust/30 bg-trust-soft text-trust" : "border-danger/30 bg-danger/5 text-danger"}`}
-        title={r.breaks.join("\n")}
       >
         <span className="font-medium">
           {r.balanced ? "Books balance to the cent ✓" : "Books don't balance"}
@@ -65,7 +68,23 @@ export function TrustProof({ snapshot }: { snapshot: Snapshot }) {
             </>
           )}
         </span>
+        {r.breaks.length > 0 && (
+          <ul className="w-full list-disc pl-5 text-danger">
+            {r.breaks.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        )}
       </div>
+      {refused && (
+        <div className="slide-in rounded-md border border-danger/30 bg-danger/5 px-4 py-2 text-[12px] text-danger">
+          <span className="font-semibold">Refused by the trust rule:</span>{" "}
+          <Money cents={refused.amountCents ?? 0} /> held for{" "}
+          {snapshot.artists.find((a) => a.id === refused.artistId)?.name ??
+            "the artist"}{" "}
+          can&apos;t go to operating or to creditors. Balances unchanged.
+        </div>
+      )}
     </div>
   );
 }

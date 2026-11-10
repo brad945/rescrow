@@ -11,6 +11,7 @@ import type {
   Payout,
   Sale,
   Snapshot,
+  TrustMoveRequest,
 } from "@/types";
 import { formatCents, methodLabel, shareOf } from "@/lib/money";
 
@@ -424,6 +425,55 @@ export function declareInsolvency(
     );
   }
   return { snapshot: s };
+}
+
+/**
+ * Demo: the gallery tries to move a sale's trust money to operating (to pay
+ * rent) or to a creditor. It goes through the real exit, releaseTrust, which
+ * refuses it before anything changes. The refusal is logged on the artist's
+ * feed with the exact reason; no balance moves.
+ */
+export function attemptTrustMove(
+  input: Snapshot,
+  args: TrustMoveRequest,
+  clock: Clock = systemClock,
+): { snapshot: Snapshot; refusal: string } {
+  const sale = find(input.sales, args.saleId, "Sale");
+  const holds = input.holds.filter(
+    (h) => h.saleId === sale.id && h.status === "locked",
+  );
+  if (holds.length === 0) throw new EscrowError("Nothing in trust to try");
+  const total = holds.reduce((t, h) => t + h.amountCents, 0);
+  const artist = find(input.artists, sale.artistId, "Artist");
+  const gallery = find(input.galleries, sale.galleryId, "Gallery");
+  const destination = args.kind === "rent" ? "operating" : "creditors";
+
+  let refusal: string;
+  try {
+    // A scratch copy: if the guard ever let this through, the attempt still
+    // could not change the real books.
+    releaseTrust(structuredClone(input), holds, destination as "artist", clock);
+    throw new Error(
+      `Trust guard let ${formatCents(total)} go to ${destination}. This must never happen`,
+    );
+  } catch (err) {
+    if (!(err instanceof EscrowError)) throw err;
+    refusal = err.message;
+  }
+
+  const s = structuredClone(input);
+  const what =
+    args.kind === "rent"
+      ? `${gallery.name} tried to pay rent with`
+      : `${gallery.name}'s creditor tried to take`;
+  log(
+    s,
+    clock,
+    "trust_move_refused",
+    `Refused: ${what} the ${formatCents(total)} held in trust for ${artist.name}. ${refusal}. Nothing moved`,
+    { galleryId: gallery.id, artistId: artist.id, amountCents: total },
+  );
+  return { snapshot: s, refusal };
 }
 
 export function cancelSale(
