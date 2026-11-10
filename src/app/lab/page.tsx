@@ -10,6 +10,7 @@ import {
   type AgentRun,
 } from "@/components/AgentPanel";
 import { AgreementText } from "@/components/AgreementText";
+import { RoundingCheck } from "@/components/RoundingCheck";
 import { readNdjson } from "@/components/readNdjson";
 
 const SAMPLES = [
@@ -166,6 +167,7 @@ export default function LabPage() {
           </div>
           <AgentPanel run={run} terms={terms} source={null} />
         </div>
+        <RoundingCheck />
       </main>
     </>
   );
