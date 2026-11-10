@@ -70,6 +70,7 @@ export const ACCOUNT_RULES: Record<AccountKind, AccountRule> = {
   operating: {
     label: "Gallery operating cash",
     minBalance: 0,
+    debitCodes: ["OPERATING_TO_BUYER", "OPERATING_TO_CREDITORS"],
     debitTo: ["buyer", "creditors"],
   },
   trust: {

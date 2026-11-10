@@ -75,6 +75,10 @@ Record this as a second take and cut it in. It pays off the hook.
 
 Optional, if there's time: `R`, run to payment 1, press `C` for the buyer cancelling. The artist's share goes back to the buyer straight from trust.
 
+### Optional, 5 seconds: the accountant's view (open `/books`)
+
+> The gallery's accountant gets the same books. Trust is restricted cash against what's owed to artists, never revenue, and the trial balance and trust tie-out come straight from the journal. The grid shows where money may go: trust can only reach the artist or the buyer.
+
 ### 2:00 to 2:20, how it works (cut to the code)
 
 Show `src/lib/agent/verify.ts` for a few seconds, then `artistShareOfPayment` in `src/lib/escrow/engine.ts`, then the tests running.
