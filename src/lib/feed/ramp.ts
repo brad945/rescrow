@@ -8,7 +8,12 @@
 // is idempotent on the transaction id. FakeRampFeed replays a scripted list of
 // pages for tests; nothing in the app polls a real network.
 import type { Cents, Id, PaymentMethod, Snapshot } from "@/types";
-import { EscrowError, receivePayment, type Clock } from "@/lib/escrow/engine";
+import {
+  EscrowError,
+  IdempotencyConflict,
+  receivePayment,
+  type Clock,
+} from "@/lib/escrow/engine";
 
 export interface FeedTransaction {
   id: string;
@@ -48,9 +53,17 @@ export interface IngestResult {
   booked: string[];
   duplicates: string[];
   unmatched: string[];
+  /** Matched a sale but the engine refused it (sale already paid, gallery insolvent...). */
+  refused: { id: string; reason: string }[];
 }
 
-/** Books every transaction in a page once, however many times it is delivered. */
+/**
+ * Books every transaction in a page once, however many times it is delivered.
+ * One refused transaction is set aside with its reason and the rest of the
+ * page still books, so a single bad deposit can't stall the feed. The one
+ * exception is a conflicting redelivery (same id, different details), which
+ * throws: that means the bank and the books disagree about history.
+ */
 export function ingest(
   input: Snapshot,
   txns: FeedTransaction[],
@@ -62,6 +75,7 @@ export function ingest(
     booked: [],
     duplicates: [],
     unmatched: [],
+    refused: [],
   };
   for (const t of txns) {
     const saleId = saleIdFromMemo(t.memo);
@@ -70,23 +84,30 @@ export function ingest(
       continue;
     }
     const seen = s.payments.some((p) => p.rampTransactionId === t.id);
-    s = receivePayment(
-      s,
-      {
-        saleId,
-        amountCents: t.amountCents,
-        method: t.method,
-        rampTransactionId: t.id,
-      },
-      clock,
-    ).snapshot;
+    try {
+      s = receivePayment(
+        s,
+        {
+          saleId,
+          amountCents: t.amountCents,
+          method: t.method,
+          rampTransactionId: t.id,
+        },
+        clock,
+      ).snapshot;
+    } catch (err) {
+      if (err instanceof IdempotencyConflict) throw err;
+      if (!(err instanceof EscrowError)) throw err;
+      out.refused.push({ id: t.id, reason: err.message });
+      continue;
+    }
     (seen ? out.duplicates : out.booked).push(t.id);
   }
   out.snapshot = s;
   return out;
 }
 
-/** Drains a feed page by page, ingesting each. Throws on a conflicting redelivery. */
+/** Drains a feed page by page, ingesting each. Throws only on a conflicting redelivery. */
 export function drain(
   input: Snapshot,
   feed: BankFeed,
@@ -99,6 +120,7 @@ export function drain(
     booked: [],
     duplicates: [],
     unmatched: [],
+    refused: [],
   };
   for (let i = 0; i < maxPages; i++) {
     const page = feed.list({ cursor });
@@ -107,6 +129,7 @@ export function drain(
     total.booked.push(...r.booked);
     total.duplicates.push(...r.duplicates);
     total.unmatched.push(...r.unmatched);
+    total.refused.push(...r.refused);
     if (!page.next) return total;
     cursor = page.next;
   }

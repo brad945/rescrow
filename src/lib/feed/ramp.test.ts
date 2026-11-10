@@ -175,3 +175,55 @@ describe("FakeRampFeed: overlapping, repeated and reordered pages", () => {
     expect(reconcile(s, G).breaks).toEqual([]);
   });
 });
+
+describe("one bad transaction doesn't stall the page", () => {
+  it("books the rest and sets the refused one aside with its reason", () => {
+    const c = clock();
+    const { sale, snapshot } = openSale(c);
+    const r = drain(
+      snapshot,
+      new FakeRampFeed([
+        {
+          transactions: [
+            // Tidewater was paid in full in the seed: refused, not fatal.
+            {
+              id: "rtx_late",
+              amountCents: 100,
+              method: "wire",
+              memo: "RSC-sale_tidewater",
+            },
+            {
+              id: "rtx_ok",
+              amountCents: 800_000,
+              method: "wire",
+              memo: `RSC-${sale.id}`,
+            },
+          ],
+          next: null,
+        },
+      ]),
+      c,
+    );
+    expect(r.booked).toEqual(["rtx_ok"]);
+    expect(r.refused).toEqual([
+      { id: "rtx_late", reason: expect.stringMatching(/is paid/) },
+    ]);
+    expect(reconcile(r.snapshot, G).breaks).toEqual([]);
+  });
+
+  it("a conflicting redelivery still stops the feed", () => {
+    const c = clock();
+    const { sale, snapshot } = openSale(c);
+    const tx = { id: "rtx_1", method: "wire" as const, memo: `RSC-${sale.id}` };
+    expect(() =>
+      drain(
+        snapshot,
+        new FakeRampFeed([
+          { transactions: [{ ...tx, amountCents: 800_000 }], next: "p2" },
+          { transactions: [{ ...tx, amountCents: 700_000 }], next: null },
+        ]),
+        c,
+      ),
+    ).toThrow(IdempotencyConflict);
+  });
+});
