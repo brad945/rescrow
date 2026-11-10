@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Nav } from "@/components/Nav";
 import { ExplainDrawer } from "@/components/ExplainDrawer";
+import { WhyTheseRules } from "@/components/WhyTheseRules";
 import type { Metric } from "@/lib/explain";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { AgreementCard } from "@/components/AgreementCard";
@@ -184,6 +185,7 @@ export default function GalleryPage() {
             ))}
           </div>
         </section>
+        <WhyTheseRules />
       </main>
     </>
   );

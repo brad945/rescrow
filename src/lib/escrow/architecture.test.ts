@@ -182,7 +182,9 @@ describe("architecture: transition() is called from releaseTrust only", () => {
           const m = line.match(/^(?:export )?(?:async )?function (\w+)/);
           if (m) fn = m[1];
           if (
-            /\btransition\(/.test(line) &&
+            // A call passes arguments; "transition()" in prose or a test
+            // title is not a call.
+            /\btransition\((?!\))/.test(line) &&
             !/function transition/.test(line)
           ) {
             callers.push(`${path.relative(SRC, file)} ${fn}`);
