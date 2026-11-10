@@ -10,6 +10,7 @@ import {
   type AgentRun,
 } from "@/components/AgentPanel";
 import { AgreementText } from "@/components/AgreementText";
+import { BreakTheBooks } from "@/components/BreakTheBooks";
 import { RoundingCheck } from "@/components/RoundingCheck";
 import { readNdjson } from "@/components/readNdjson";
 
@@ -167,6 +168,7 @@ export default function LabPage() {
           </div>
           <AgentPanel run={run} terms={terms} source={null} />
         </div>
+        <BreakTheBooks />
         <RoundingCheck />
       </main>
     </>

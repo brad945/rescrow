@@ -25,9 +25,15 @@ function files(dir: string): string[] {
   });
 }
 
+// plants.ts corrupts copies on purpose (for /lab's "Try to break the books"),
+// so its writes are exempt from the manifest. That file is exempt from this
+// scan only; the import guard below keeps it away from routes and the store.
+const WRITE_SCAN_EXEMPT = ["lib/escrow/plants.ts"];
+
 function writes(): string[] {
   const out: string[] = [];
   for (const file of files(SRC)) {
+    if (WRITE_SCAN_EXEMPT.includes(path.relative(SRC, file))) continue;
     const lines = fs.readFileSync(file, "utf8").split("\n");
     let fn = "(top level)";
     lines.forEach((line) => {
@@ -184,5 +190,16 @@ describe("architecture: transition() is called from releaseTrust only", () => {
         });
     }
     expect(callers).toEqual(["lib/escrow/engine.ts releaseTrust"]);
+  });
+});
+
+describe("architecture: the plants never reach real books", () => {
+  it("only the /lab component imports plants.ts", () => {
+    const importers = files(SRC)
+      .filter((f) =>
+        /from "(\.\/|@\/lib\/escrow\/)plants"/.test(fs.readFileSync(f, "utf8")),
+      )
+      .map((f) => path.relative(SRC, f));
+    expect(importers).toEqual(["components/BreakTheBooks.tsx"]);
   });
 });
