@@ -16,12 +16,19 @@ export interface GalleryAccount {
   type: GalleryAccountType;
   /** For liabilities: who the money is owed to, if anyone in particular. */
   owedTo?: "artists" | "buyers";
+  /** For bank accounts: the one titled as trust for the artists. */
+  trust?: boolean;
 }
 
 /** A small gallery's chart, shaped like a typical small-business chart. A fixture. */
 export const GALLERY_CHART: GalleryAccount[] = [
   { number: "1000", name: "Ramp Checking ··4417 (operating)", type: "Bank" },
-  { number: "1005", name: "Ramp Checking ··4425 (artist trust)", type: "Bank" },
+  {
+    number: "1005",
+    name: "Ramp Checking ··4425 (artist trust)",
+    type: "Bank",
+    trust: true,
+  },
   {
     number: "2100",
     name: "Due to consignors",
@@ -79,10 +86,33 @@ export function validateMapping(
     }
   }
   const trust = target("1020");
-  if (trust && trust.type !== "Bank") {
+  if (trust && (trust.type !== "Bank" || !trust.trust)) {
     out.push(
-      `Restricted trust cash (1020) must map to a bank account, not ${trust.type}`,
+      `Restricted trust cash (1020) must map to the bank account titled as artist trust, not ${trust.name}`,
     );
+  }
+  const operating = target("1010");
+  if (operating && (operating.type !== "Bank" || operating.trust)) {
+    out.push(
+      `Operating cash (1010) must map to an ordinary bank account, not ${operating.name}`,
+    );
+  }
+  // Every other account keeps its kind: revenue stays income, the
+  // administrator's take and opening balances stay equity, covered refunds
+  // stay an expense.
+  const KIND: Record<string, GalleryAccountType[]> = {
+    "3000": ["Equity"],
+    "3900": ["Equity", "Expense"],
+    "4010": ["Income"],
+    "5010": ["Expense"],
+  };
+  for (const [code, types] of Object.entries(KIND)) {
+    const t = target(code);
+    if (t && !types.includes(t.type)) {
+      out.push(
+        `${code} ${CHART[code].name} must map to ${types.join(" or ")}, not ${t.type}`,
+      );
+    }
   }
   if (mapping["1020"] && mapping["1020"] === mapping["1010"]) {
     out.push(

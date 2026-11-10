@@ -24,12 +24,32 @@ describe("mapping the books onto the gallery's chart", () => {
     [
       "trust cash to a non-bank account",
       m({ "1020": "2300" }),
-      /must map to a bank account/,
+      /must map to the bank account titled as artist trust/,
     ],
     [
       "trust and operating cash in one account",
       m({ "1020": "1000" }),
       /commingling on paper/,
+    ],
+    [
+      "trust and operating cash swapped",
+      m({ "1010": "1005", "1020": "1000" }),
+      /titled as artist trust/,
+    ],
+    [
+      "operating cash booked as income",
+      m({ "1010": "4000" }),
+      /must map to an ordinary bank account/,
+    ],
+    [
+      "commission booked into customer deposits",
+      m({ "4010": "2200" }),
+      /4010 .* must map to Income/,
+    ],
+    [
+      "the administrator's take booked as income",
+      m({ "3900": "4100" }),
+      /3900 .* must map to Equity or Expense/,
     ],
     [
       "owed to artists booked as income",
