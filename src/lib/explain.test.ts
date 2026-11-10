@@ -6,7 +6,9 @@ import {
   applyTerms,
   attemptTrustMove,
   cancelSale,
+  closePeriod,
   createSale,
+  galleryTotals,
   declareInsolvency,
   receivePayment,
   type Clock,
@@ -53,6 +55,15 @@ function states(): [string, Snapshot][] {
     "G",
     attemptTrustMove(s, { saleId: sale.id, kind: "rent" }, clock).snapshot,
   ]);
+  out.push([
+    "D",
+    receivePayment(s, { saleId: sale.id, rampTransactionId: "rtx_s2" }, clock)
+      .snapshot,
+  ]);
+  out.push([
+    "closed October",
+    closePeriod(s, { galleryId: G, month: "2026-10" }, clock).snapshot,
+  ]);
   out.push(["T", advanceClock(s, { days: 61 }, clock)]);
   out.push([
     "T then C",
@@ -84,6 +95,16 @@ describe("explain: every balance opens into the records that sum to it", () => {
         const sum = explain(s, G, metric).reduce((t, x) => t + x.cents, 0);
         expect(sum, `${metric} in ${name}`).toBe(r[field]);
       }
+    }
+  });
+
+  it("the two drawers /gallery opens sum to the figures it shows", () => {
+    for (const [name, s] of states()) {
+      const t = galleryTotals(s, G);
+      const sum = (m: Metric) =>
+        explain(s, G, m).reduce((a, r) => a + r.cents, 0);
+      expect(sum("operating"), name).toBe(t.operatingCents);
+      expect(sum("trust"), name).toBe(t.lockedCents);
     }
   });
 

@@ -9,11 +9,14 @@ export function ExplainDrawer({
   snapshot,
   galleryId,
   metric,
+  expectedCents,
   onClose,
 }: {
   snapshot: Snapshot;
   galleryId: string;
   metric: Metric;
+  /** The figure that was clicked; the drawer checks its rows against it. */
+  expectedCents: number;
   onClose: () => void;
 }) {
   const rows = explain(snapshot, galleryId, metric);
@@ -58,9 +61,16 @@ export function ExplainDrawer({
             </li>
           ))}
         </ul>
-        <p className="mt-3 border-t border-line pt-2 text-[12px] font-medium text-trust">
-          Sums to <Money cents={total} /> ✓
-        </p>
+        {total === expectedCents ? (
+          <p className="mt-3 border-t border-line pt-2 text-[12px] font-medium text-trust">
+            Sums to <Money cents={total} />, the figure on screen ✓
+          </p>
+        ) : (
+          <p className="mt-3 border-t border-line pt-2 text-[12px] font-medium text-danger">
+            Sums to <Money cents={total} />, but the figure on screen is{" "}
+            <Money cents={expectedCents} /> ✗
+          </p>
+        )}
       </aside>
     </div>
   );

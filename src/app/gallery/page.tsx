@@ -10,7 +10,7 @@ import { AgreementCard } from "@/components/AgreementCard";
 import { GalleryBalances, Ledger } from "@/components/GalleryAccount";
 import { Card, Money, Pill, Swatch, shortDate } from "@/components/ui";
 import { useSnapshot } from "@/components/useSnapshot";
-import { paidSoFar } from "@/lib/escrow/engine";
+import { galleryTotals, paidSoFar } from "@/lib/escrow/engine";
 
 export default function GalleryPage() {
   const { snapshot, error, busy, act } = useSnapshot();
@@ -62,6 +62,11 @@ export default function GalleryPage() {
             snapshot={snapshot}
             galleryId={gallery.id}
             metric={explaining}
+            expectedCents={
+              explaining === "trust"
+                ? galleryTotals(snapshot, gallery.id).lockedCents
+                : galleryTotals(snapshot, gallery.id).operatingCents
+            }
             onClose={() => setExplaining(null)}
           />
         )}

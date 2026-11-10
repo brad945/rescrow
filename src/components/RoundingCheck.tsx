@@ -105,7 +105,16 @@ export function RoundingCheck() {
             <Money cents={table.exactShareCents} />.{" "}
             {table.firstDriftRow === null
               ? "Here both methods agree."
-              : `Rounding each payment drifts from row ${table.firstDriftRow}, by ${Math.abs(table.naiveTotalCents - table.exactShareCents)} cent(s), taken from the gallery's part.`}{" "}
+              : (() => {
+                  const d = table.naiveTotalCents - table.exactShareCents;
+                  if (d === 0) {
+                    return `Rounding each payment drifts from row ${table.firstDriftRow}, though by the last row it happens to cancel out.`;
+                  }
+                  const cents = `${Math.abs(d)} cent${Math.abs(d) === 1 ? "" : "s"}`;
+                  return d > 0
+                    ? `Rounding each payment pays the artist ${cents} the agreement doesn't give them, taken from the gallery's part (drift from row ${table.firstDriftRow}).`
+                    : `Rounding each payment shorts the artist ${cents} (drift from row ${table.firstDriftRow}).`;
+                })()}{" "}
             Rescrow uses the running total. On the demo sale both give
             $12,000.00.
           </p>
