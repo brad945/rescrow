@@ -12,7 +12,7 @@ import {
   receivePayment,
   type Clock,
 } from "./engine";
-import { reconcile } from "./reconcile";
+import { artistAccount, reconcile } from "./reconcile";
 
 const G = "gal_lowline";
 
@@ -188,6 +188,42 @@ const PLANTS: [string, (s: Snapshot) => void, RegExp][] = [
     /has no bank transaction id/,
   ],
   [
+    "one cent shifted between two of Ines's holds (every total still balances)",
+    (s) => {
+      const [a, b] = s.holds.filter((h) => h.artistId === "art_ines");
+      a.amountCents += 1;
+      b.amountCents -= 1;
+    },
+    /Payment 1 on .* put \$4,000\.01 in trust; its running-total share is \$4,000\.00/,
+  ],
+  [
+    "a locked hold is left on a completed sale",
+    (s) => {
+      const h = s.holds.find((x) => x.saleId === "sale_tidewater")!;
+      h.status = "locked";
+      s.payouts = s.payouts.filter((p) => !p.holdIds.includes(h.id));
+    },
+    /still locked in trust on paid sale sale_tidewater/,
+  ],
+  [
+    "a hold is relabelled to another artist",
+    (s) => void (locked(s).artistId = "art_mara"),
+    /doesn't match its sale's artist or gallery/,
+  ],
+  [
+    "a payout includes another artist's hold",
+    (s) => {
+      const mara = s.payouts.find((p) => p.artistId === "art_mara")!;
+      mara.artistId = "art_theo";
+    },
+    /pays art_theo from another artist's hold/,
+  ],
+  [
+    "a payout differs from its holds by one cent",
+    (s) => void (s.payouts[0].amountCents += 1),
+    /Payout po_tidewater is \$9,000\.01 but its holds total \$9,000\.00/,
+  ],
+  [
     "the opening balance is missing",
     (s) => void delete gallery(s).openingBalanceCents,
     /No opening balance on record/,
@@ -212,5 +248,48 @@ describe("reconcile: planted-break catalogue", () => {
     expect(reconcile(s, G).balanced).toBe(true);
     s.payouts.at(-1)!.amountCents -= 1;
     expect(reconcile(s, G).balanced).toBe(false);
+  });
+});
+
+describe("artistAccount: one artist's own books, from three sources", () => {
+  it("agrees for every artist on healthy books, before and after insolvency", () => {
+    for (const s of [
+      createSeed(),
+      healthy(),
+      declareInsolvency(healthy(), { galleryId: G }, clock()).snapshot,
+    ]) {
+      for (const a of ["art_mara", "art_theo", "art_ines"]) {
+        const acc = artistAccount(s, G, a);
+        expect(acc.agrees, a).toBe(true);
+        expect(acc.journalAgrees, a).toBe(true);
+      }
+    }
+    expect(artistAccount(healthy(), G, "art_ines")).toMatchObject({
+      shareReceivedCents: 800_000,
+      heldCents: 800_000,
+      paidCents: 0,
+    });
+  });
+
+  it("disagrees when one of the artist's holds is deleted or resized", () => {
+    const gone = structuredClone(healthy());
+    const first = gone.holds.find((h) => h.artistId === "art_ines")!;
+    gone.holds = gone.holds.filter((h) => h !== first);
+    expect(artistAccount(gone, G, "art_ines").agrees).toBe(false);
+
+    const resized = structuredClone(healthy());
+    resized.holds.find((h) => h.artistId === "art_ines")!.amountCents -= 1;
+    expect(artistAccount(resized, G, "art_ines").agrees).toBe(false);
+  });
+
+  it("the journal side disagrees when an artist posting is edited", () => {
+    const s = structuredClone(healthy());
+    const e = s.journal.find((x) =>
+      x.postings.some((p) => p.account === "artist:gal_lowline:art_mara"),
+    )!;
+    e.postings.find(
+      (p) => p.account === "artist:gal_lowline:art_mara",
+    )!.cents -= 1;
+    expect(artistAccount(s, G, "art_mara").journalAgrees).toBe(false);
   });
 });

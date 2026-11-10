@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { ArtistAccountLine } from "@/components/ArtistAccountLine";
 import { Money, shortDate } from "@/components/ui";
 import { useSnapshot } from "@/components/useSnapshot";
 import { methodLabel } from "@/lib/money";
@@ -168,6 +169,12 @@ export default function StatementPage() {
             </>
           )}
         </p>
+        <ArtistAccountLine
+          snapshot={snapshot}
+          galleryId={payout.galleryId}
+          artistId={payout.artistId}
+          className="mt-3"
+        />
       </article>
     </main>
   );

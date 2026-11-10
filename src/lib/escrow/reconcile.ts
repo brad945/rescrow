@@ -1,5 +1,5 @@
 import type { Cents, Id, Reconciliation, Snapshot } from "@/types";
-import { formatCents } from "@/lib/money";
+import { formatCents, shareOf } from "@/lib/money";
 import { acct, balancesOf } from "./journal";
 
 /**
@@ -177,6 +177,7 @@ export function reconcile(s: Snapshot, galleryId: Id): Reconciliation {
     );
   }
 
+  breaks.push(...subLedgerBreaks(s, galleryId));
   breaks.push(
     ...journalBreaks(s, galleryId, {
       openingCents: gallery.openingBalanceCents,
@@ -269,4 +270,147 @@ function journalBreaks(
     check(`trust for ${a}`, bal.get(acct.trust(galleryId, a)) ?? 0, locked);
   }
   return out;
+}
+
+/**
+ * Totals can balance while single records are wrong (a cent moved from one
+ * hold to the next keeps every total intact). These checks reconcile each
+ * payment, hold, sale and payout on its own.
+ */
+function subLedgerBreaks(s: Snapshot, galleryId: Id): string[] {
+  const out: string[] = [];
+  const sales = s.sales.filter((x) => x.galleryId === galleryId);
+  const failed =
+    s.galleries.find((g) => g.id === galleryId)?.status === "insolvent";
+
+  for (const sale of sales) {
+    // Payments in the order they were recorded (the order the running-total
+    // rounding used), not by timestamp, which can tie.
+    const payments = s.payments.filter((p) => p.saleId === sale.id);
+    let before = 0;
+    payments.forEach((p, i) => {
+      const own = s.holds.filter((h) => h.paymentId === p.id);
+      const after = before + p.amountCents;
+      if (own.length === 1) {
+        const want =
+          shareOf(after, sale.artistShareBps) -
+          shareOf(before, sale.artistShareBps);
+        if (own[0].amountCents !== want) {
+          out.push(
+            `Payment ${i + 1} on ${sale.id} put ${formatCents(own[0].amountCents)} in trust; its running-total share is ${formatCents(want)}`,
+          );
+        }
+      }
+      before = after;
+    });
+
+    const locked = s.holds.filter(
+      (h) => h.saleId === sale.id && h.status === "locked",
+    );
+    if (locked.length > 0 && (sale.status !== "open" || failed)) {
+      out.push(
+        `${formatCents(locked.reduce((t, h) => t + h.amountCents, 0))} is still locked in trust on ${sale.status} sale ${sale.id}${failed ? " at an insolvent gallery" : ""}`,
+      );
+    }
+  }
+
+  for (const h of s.holds.filter((x) => x.galleryId === galleryId)) {
+    const sale = s.sales.find((x) => x.id === h.saleId);
+    const payment = s.payments.find((p) => p.id === h.paymentId);
+    if (
+      !sale ||
+      sale.artistId !== h.artistId ||
+      sale.galleryId !== h.galleryId
+    ) {
+      out.push(`Hold ${h.id} doesn't match its sale's artist or gallery`);
+    }
+    if (payment && payment.saleId !== h.saleId) {
+      out.push(`Hold ${h.id} and its payment belong to different sales`);
+    }
+  }
+
+  for (const po of s.payouts.filter((x) => x.galleryId === galleryId)) {
+    const holds = po.holdIds.map((id) => s.holds.find((h) => h.id === id));
+    if (holds.some((h) => !h || h.status !== "paid")) {
+      out.push(`Payout ${po.id} names a hold that isn't paid`);
+      continue;
+    }
+    if (
+      holds.some(
+        (h) => h!.artistId !== po.artistId || h!.galleryId !== po.galleryId,
+      )
+    ) {
+      out.push(
+        `Payout ${po.id} pays ${po.artistId} from another artist's hold`,
+      );
+    }
+    const total = holds.reduce((t, h) => t + h!.amountCents, 0);
+    if (total !== po.amountCents) {
+      out.push(
+        `Payout ${po.id} is ${formatCents(po.amountCents)} but its holds total ${formatCents(total)}`,
+      );
+    }
+  }
+  return out;
+}
+
+export interface ArtistAccount {
+  /** The artist's share of every buyer payment, computed from the payments. */
+  shareReceivedCents: Cents;
+  heldCents: Cents;
+  paidCents: Cents;
+  refundedCents: Cents;
+  /** share received = held + paid + refunded, from payments vs holds. */
+  agrees: boolean;
+  /** The journal says the same: trust balance = held, paid out = payouts. */
+  journalAgrees: boolean;
+}
+
+/**
+ * One artist's own account at one gallery, checked from three sources: the
+ * buyer payments, the trust holds, and the separate journal.
+ */
+export function artistAccount(
+  s: Snapshot,
+  galleryId: Id,
+  artistId: Id,
+): ArtistAccount {
+  const sales = s.sales.filter(
+    (x) => x.galleryId === galleryId && x.artistId === artistId,
+  );
+  const shareReceivedCents = sales.reduce(
+    (t, sale) =>
+      t +
+      shareOf(
+        s.payments
+          .filter((p) => p.saleId === sale.id)
+          .reduce((a, p) => a + p.amountCents, 0),
+        sale.artistShareBps,
+      ),
+    0,
+  );
+  const holds = s.holds.filter(
+    (h) => h.galleryId === galleryId && h.artistId === artistId,
+  );
+  const by = (status: string) =>
+    holds
+      .filter((h) => h.status === status)
+      .reduce((t, h) => t + h.amountCents, 0);
+  const heldCents = by("locked");
+  const paidCents = by("paid");
+  const refundedCents = by("refunded");
+  const bal = balancesOf(s.journal);
+  const payouts = s.payouts
+    .filter((p) => p.galleryId === galleryId && p.artistId === artistId)
+    .reduce((t, p) => t + p.amountCents, 0);
+  return {
+    shareReceivedCents,
+    heldCents,
+    paidCents,
+    refundedCents,
+    agrees: shareReceivedCents === heldCents + paidCents + refundedCents,
+    journalAgrees:
+      (bal.get(acct.trust(galleryId, artistId)) ?? 0) === heldCents &&
+      (bal.get(acct.artist(galleryId, artistId)) ?? 0) === payouts,
+  };
 }

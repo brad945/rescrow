@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { ActivityFeed } from "@/components/ActivityFeed";
+import { ArtistAccountLine } from "@/components/ArtistAccountLine";
 import { Card, Money, Pill, shortDate, Swatch } from "@/components/ui";
 import { useSnapshot } from "@/components/useSnapshot";
 import { artistTotals, paidSoFar } from "@/lib/escrow/engine";
@@ -69,6 +70,14 @@ export default function ArtistPortal() {
               under New York law it is trust money, not the gallery&apos;s, even
               if the gallery closes.
             </p>
+            {gallery && (
+              <ArtistAccountLine
+                snapshot={snapshot}
+                galleryId={gallery.id}
+                artistId={artist.id}
+                className="mt-3 max-w-md"
+              />
+            )}
             {lockedHolds.length > 0 && (
               <p className="mt-3 text-xs text-trust/80">
                 Paid to you automatically the day the buyer finishes paying
