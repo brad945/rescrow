@@ -1,43 +1,21 @@
 # Rescrow: rules for every Claude session in this repo
 
-Two people, two lanes, built in parallel, pushing straight to `main`.
-**Lane A (backend) = Bradley. Lane B (frontend) = Neil.**
-Before doing anything, ask which lane you are in if you haven't been told.
-
-The rule that keeps `main` conflict-free: **the two lanes never edit the same files.**
-If a file is not in your lane, do not edit it, format it or rename it, even to fix a typo.
-
-## Who owns which files
-
-| Path                                                                                                                         | Lane |
-| ---------------------------------------------------------------------------------------------------------------------------- | ---- |
-| `src/types.ts`                                                                                                               | A    |
-| `src/lib/**` (agent, escrow, ramp, store, seed, money, api helpers)                                                          | A    |
-| `src/app/api/**`                                                                                                             | A    |
-| `scripts/**`                                                                                                                 | A    |
-| `package.json`, `package-lock.json`                                                                                          | A    |
-| Config: `tsconfig.json`, `next.config.ts`, `eslint.config.mjs`, `vitest.*`, `postcss.config.mjs`, `.prettier*`, `.gitignore` | A    |
-| `README.md`, `CLAUDE.md`, `docs/PRD.md`, `docs/spec-A-backend.md`, `docs/requests-from-A.md`                                 | A    |
-| `src/app/**` except `src/app/api/**` (pages, `layout.tsx`, `globals.css`, `page.tsx`)                                        | B    |
-| `src/components/**`                                                                                                          | B    |
-| `docs/spec-B-frontend.md`, `docs/requests-from-B.md`, `docs/demo-script.md`                                                  | B    |
-
-A new file belongs to the lane that owns the folder it goes in.
-
-## Crossing lanes without editing each other's files
-
-- **B needs a new field, type, route or package:** add a line to `docs/requests-from-B.md` (B owns that file) and text Bradley. A ships it. B never edits `src/types.ts` or `package.json`.
-- **A needs a UI change:** add it to `docs/requests-from-A.md` and text Neil.
-- **B uses A's logic by importing it.** B may import anything from `src/lib/**` and `src/types.ts`. Importing is not editing. Numbers shown on screen (totals, reconciliation, statements) come from pure functions in `src/lib`, never re-computed in a page.
-- **Changes to the contract are additive only.** A adds fields and routes but never renames or removes one B already uses. That way a push from A can't break B's build.
+Two people, Bradley and Neil, building on the same repo and reviewing each other's work.
+The first drafts were split by file (backend vs frontend) so they could be built in parallel without conflicts. That split is retired: either person may edit any file.
 
 ## Git, every time
 
 1. `git pull --rebase origin main` before starting and before every push.
-2. Small commits that touch only your lane's files. Run `git status` before committing; if a file from the other lane shows as modified, revert it (`git checkout -- <file>`), don't commit it.
-3. Run the checks before pushing: `npm run lint && npm run typecheck && npm test && npm run format:check`. Run Prettier on your own files only (`npx prettier --write <your files>`), never `npm run format` across the repo.
-4. Push. If a push is rejected, pull with rebase again. Since the lanes don't overlap, the rebase is clean.
-5. Never force-push `main`.
+2. Larger features go on a branch (for example `big-build`) and are merged to `main` one feature at a time, only when green.
+3. Run the gate before pushing: `bash scripts/gate.sh` (lint, typecheck, tests, format check; add `--build` for a production build). CI runs the same script on every push.
+4. Run Prettier on the files you touched (`npx prettier --write <files>`), not across the repo.
+5. `src/app/api/demo-flow.test.ts` drives the recorded demo through the real routes. If it fails, the demo is broken: fix it or update `docs/demo-script.md` in the same commit.
+6. Never force-push `main`.
+
+## Contract rules
+
+- **Pages never re-implement money logic.** They import from `src/lib/**` and `src/types.ts`. Numbers shown on screen (totals, reconciliation, statements) come from pure functions in `src/lib`, never re-computed in a page.
+- Changes to shared types are additive where possible, so one person's push can't break the other's build.
 
 ## Product rules the code must keep
 
