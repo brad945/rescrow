@@ -608,3 +608,85 @@ export function sealOf(
   }
   return { entryCount: entries.length, totals };
 }
+
+// Payout deadlines, the queue a finance team works from.
+
+export type LadderBucket =
+  | "overdue"
+  | "within 7 days"
+  | "8 to 30 days"
+  | "later"
+  | "no deadline on record";
+
+export const LADDER_BUCKETS: LadderBucket[] = [
+  "overdue",
+  "within 7 days",
+  "8 to 30 days",
+  "later",
+  "no deadline on record",
+];
+
+export interface LadderRow {
+  holdId: Id;
+  artistId: Id;
+  workTitle: string;
+  amountCents: Cents;
+  lockedAt: string;
+  dueBy: string | null;
+  /** Whole UTC calendar days from now to the deadline (negative when overdue). */
+  daysLeft: number | null;
+  /** Where the window comes from. */
+  source: string;
+  bucket: LadderBucket;
+}
+
+/** Every share still in trust at the gallery, bucketed by how soon it is due at `nowIso`. */
+export function deadlineLadder(
+  s: Snapshot,
+  galleryId: Id,
+  nowIso: string,
+): { rows: LadderRow[]; totals: Record<LadderBucket, Cents> } {
+  const day = (iso: string) =>
+    Math.floor(Date.parse(iso.slice(0, 10)) / 86_400_000);
+  const rows: LadderRow[] = s.holds
+    .filter((h) => h.galleryId === galleryId && h.status === "locked")
+    .map((h) => {
+      const sale = s.sales.find((x) => x.id === h.saleId);
+      const work = s.artworks.find((w) => w.id === sale?.artworkId);
+      const dueBy = h.dueBy ?? null;
+      const overdue = dueBy !== null && Date.parse(dueBy) <= Date.parse(nowIso);
+      const daysLeft = dueBy ? day(dueBy) - day(nowIso) : null;
+      const bucket: LadderBucket =
+        dueBy === null
+          ? "no deadline on record"
+          : overdue
+            ? "overdue"
+            : daysLeft! <= 7
+              ? "within 7 days"
+              : daysLeft! <= 30
+                ? "8 to 30 days"
+                : "later";
+      return {
+        holdId: h.id,
+        artistId: h.artistId,
+        workTitle: work?.title ?? h.saleId,
+        amountCents: h.amountCents,
+        lockedAt: h.lockedAt,
+        dueBy,
+        daysLeft,
+        source:
+          sale?.payoutDays !== undefined
+            ? `${sale.payoutDays} days from receipt, fixed on the sale`
+            : "from the agreement",
+        bucket,
+      };
+    })
+    .sort((a, b) => (a.dueBy ?? "~").localeCompare(b.dueBy ?? "~"));
+  const totals = Object.fromEntries(
+    LADDER_BUCKETS.map((b) => [
+      b,
+      rows.filter((r) => r.bucket === b).reduce((t, r) => t + r.amountCents, 0),
+    ]),
+  ) as Record<LadderBucket, Cents>;
+  return { rows, totals };
+}

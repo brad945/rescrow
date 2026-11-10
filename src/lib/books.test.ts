@@ -11,7 +11,9 @@ import {
   type Clock,
 } from "@/lib/escrow/engine";
 import { reconcile } from "@/lib/escrow/reconcile";
+import { SEED_NOW } from "@/lib/seed";
 import {
+  deadlineLadder,
   flowMatrix,
   glLines,
   incomeStatement,
@@ -261,5 +263,41 @@ describe("books: the flow matrix comes from the journal's own rules", () => {
     expect(cell("operating", "creditors").allowed).toBe(true);
     expect(cell("operating", "artist").allowed).toBe(false);
     expect(cell("operating", "trust").allowed).toBe(false);
+  });
+});
+
+describe("books: payout deadline ladder", () => {
+  const plus = (days: number) =>
+    new Date(Date.parse(SEED_NOW) + days * 86_400_000).toISOString();
+
+  it("Theo's seeded share is due within 7 days, then overdue, then paid", () => {
+    const s = createSeed();
+    const at0 = deadlineLadder(s, G, SEED_NOW);
+    expect(at0.rows).toHaveLength(1);
+    expect(at0.rows[0]).toMatchObject({
+      bucket: "within 7 days",
+      daysLeft: 4,
+      source: "14 days from receipt, fixed on the sale",
+    });
+    expect(deadlineLadder(s, G, plus(5)).totals.overdue).toBe(240_000);
+    const c = { now: () => plus(5), id: (p: string) => `${p}_l` };
+    const paid = releaseDueHolds(s, c);
+    expect(deadlineLadder(paid, G, plus(5)).totals.overdue).toBe(0);
+  });
+
+  it("bucket totals always equal what is in trust", () => {
+    for (const s of history()) {
+      const { totals } = deadlineLadder(s, G, "2026-11-10T15:00:00.000Z");
+      const sum = Object.values(totals).reduce((a, b) => a + b, 0);
+      expect(sum).toBe(reconcile(s, G).trustCents);
+    }
+  });
+
+  it("a hold with no deadline is listed as such, never as 'later'", () => {
+    const s = createSeed();
+    delete s.holds.find((h) => h.status === "locked")!.dueBy;
+    expect(deadlineLadder(s, G, SEED_NOW).rows[0].bucket).toBe(
+      "no deadline on record",
+    );
   });
 });

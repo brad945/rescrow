@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Nav } from "@/components/Nav";
 import { GALLERY } from "@/components/story";
 import { Card, Money, stamp } from "@/components/ui";
@@ -8,6 +8,7 @@ import { useSnapshot } from "@/components/useSnapshot";
 import {
   accountLabel,
   CHART,
+  deadlineLadder,
   describeTieOut,
   FLOW_FROM,
   FLOW_TO,
@@ -16,6 +17,7 @@ import {
   toCsv,
   toQuickBooksJson,
   incomeStatement,
+  LADDER_BUCKETS,
   monthLabel,
   nextMonthToClose,
   trialBalance,
@@ -37,6 +39,12 @@ const MATRIX = flowMatrix();
 export default function BooksPage() {
   const { snapshot, error, busy, act } = useSnapshot();
   const [basis, setBasis] = useState<"accrual" | "cash">("accrual");
+  // The wall clock, refreshed every 30s; the snapshot's demo offset is added below.
+  const [wall, setWall] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setWall(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
   const gallery = snapshot?.galleries.find((g) => g.id === GALLERY);
 
   if (!snapshot || !gallery) {
@@ -60,6 +68,11 @@ export default function BooksPage() {
   const income = incomeStatement(lines, basis);
   const toClose = nextMonthToClose(snapshot, GALLERY);
   const closes = [...(snapshot.closedPeriods ?? [])].reverse();
+  const ladder = deadlineLadder(
+    snapshot,
+    GALLERY,
+    new Date(wall + (snapshot.clockOffsetMs ?? 0)).toISOString(),
+  );
 
   return (
     <>
@@ -293,6 +306,56 @@ export default function BooksPage() {
               : "Cash: the gallery's part of buyer money as it arrives, less what cancellations handed back."}{" "}
             The difference is exactly what is still held as buyer deposits.
             Money held for artists is never in either.
+          </p>
+        </Card>
+
+        <Card title="Payout deadlines">
+          <div className="mb-3 flex flex-wrap gap-2 text-[12px]">
+            {LADDER_BUCKETS.map((b) => (
+              <span
+                key={b}
+                className={`rounded border px-2 py-1 ${b === "overdue" && ladder.totals[b] > 0 ? "border-danger/40 text-danger" : "border-line text-muted"}`}
+              >
+                {b}: <Money cents={ladder.totals[b]} />
+              </span>
+            ))}
+          </div>
+          {ladder.rows.length === 0 ? (
+            <p className="text-sm text-muted">Nothing is held in trust.</p>
+          ) : (
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="border-b border-line text-left text-[11px] text-muted">
+                  <th className="py-1.5 font-medium">Artist, work</th>
+                  <th className="py-1.5 text-right font-medium">Held</th>
+                  <th className="py-1.5 pl-6 font-medium">Due by</th>
+                  <th className="py-1.5 pl-4 font-medium">Window</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ladder.rows.map((r) => (
+                  <tr key={r.holdId} className="border-b border-line/60">
+                    <td className="py-1.5">
+                      {name(r.artistId)}, {r.workTitle}
+                    </td>
+                    <td className="py-1.5 text-right">
+                      <Money cents={r.amountCents} />
+                    </td>
+                    <td
+                      className={`num py-1.5 pl-6 ${r.bucket === "overdue" ? "text-danger" : ""}`}
+                    >
+                      {r.dueBy
+                        ? `${r.dueBy.slice(0, 10)} (${r.bucket === "overdue" ? "past due, paid on the next poll" : `${r.daysLeft} days`})`
+                        : "none on record"}
+                    </td>
+                    <td className="py-1.5 pl-4 text-muted">{r.source}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p className="mt-2 text-[11px] text-faint">
+            Follows the demo clock. Days are whole calendar days in UTC.
           </p>
         </Card>
 
