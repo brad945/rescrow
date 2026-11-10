@@ -26,16 +26,21 @@ export default function StatementPage() {
 
   const artist = snapshot.artists.find((a) => a.id === payout.artistId);
   const gallery = snapshot.galleries.find((g) => g.id === payout.galleryId);
-  const agreement = snapshot.agreements.find((a) => a.artistId === artistId);
   const holds = snapshot.holds.filter((h) => payout.holdIds.includes(h.id));
   const sale = snapshot.sales.find((s) => s.id === holds[0]?.saleId);
   const work = snapshot.artworks.find((w) => w.id === sale?.artworkId);
-  const rows = holds.map((h, i) => ({
+  // Number each row by its real installment on the sale, not its position in
+  // this payout (a final payout can cover installments 2 and 3).
+  const salePayments = snapshot.payments
+    .filter((p) => p.saleId === sale?.id)
+    .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt));
+  const rows = holds.map((h) => ({
     hold: h,
-    index: i + 1,
-    payment: snapshot.payments.find((p) => p.id === h.paymentId),
+    index: salePayments.findIndex((p) => p.id === h.paymentId) + 1,
+    payment: salePayments.find((p) => p.id === h.paymentId),
   }));
-  const share = agreement?.terms ? agreement.terms.artistShareBps / 100 : null;
+  // The split frozen on the sale, not whatever the agreement says today.
+  const share = sale ? sale.artistShareBps / 100 : null;
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-10 print:py-0">
