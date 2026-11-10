@@ -11,7 +11,12 @@ import {
 } from "@/lib/escrow/engine";
 import { balancesOf } from "@/lib/escrow/journal";
 import { glLines, trialBalance } from "@/lib/books";
-import { insolvencyOutcome, statementOfAffairs } from "./insolvency";
+import { artistPayments } from "@/lib/artist";
+import {
+  artistAtFailure,
+  insolvencyOutcome,
+  statementOfAffairs,
+} from "./insolvency";
 
 const G = "gal_lowline";
 function clock(): Clock {
@@ -171,5 +176,34 @@ describe("statementOfAffairs", () => {
     });
     expect(st.buyerClaimsCents).toBe(deposits(s));
     expect(st.outcome.artistsShareOfCommingledCents).toBe(0);
+  });
+});
+
+describe("artistAtFailure", () => {
+  it("is null while the gallery trades", () => {
+    expect(artistAtFailure(createSeed(), "art_ines")).toBeNull();
+  });
+
+  it("Ines after B: $8,000 from trust, funded by two bank payments, works accounted for", () => {
+    const c = clock();
+    const s = declareInsolvency(
+      storyAfterTwoPayments(c),
+      { galleryId: G },
+      c,
+    ).snapshot;
+    const a = artistAtFailure(s, "art_ines")!;
+    expect(a.paidAtFailure.reduce((t, p) => t + p.amountCents, 0)).toBe(
+      800_000,
+    );
+    expect(a.paidAtFailure.flatMap((p) => p.paymentIds)).toHaveLength(2);
+    expect(a.worksUnderOpenSale.map((w) => w.workTitle)).toEqual([
+      "Orchard in Rain",
+    ]);
+    expect(a.worksReturned.map((w) => w.title)).toContain("Threshold");
+    // Cross-check against the artist timeline, a separate path over the same records.
+    const viaTimeline = artistPayments(s, "art_ines")
+      .filter((r) => r.how === "insolvency")
+      .reduce((t, r) => t + r.shareCents, 0);
+    expect(viaTimeline).toBe(800_000);
   });
 });

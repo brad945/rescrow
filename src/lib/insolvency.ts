@@ -150,3 +150,52 @@ export function statementOfAffairs(
     buyerClaimsCents: openSales.reduce((t, r) => t + r.buyerClaimCents, 0),
   };
 }
+
+export interface ArtistAtFailure {
+  galleryId: Id;
+  galleryName: string;
+  /** Payouts from trust at the failure, with the buyer payments that funded them. */
+  paidAtFailure: StatementOfAffairs["trustPaidOut"];
+  /** Shares on still-open sales already paid on their deadline before the failure. */
+  paidOnDeadlineBeforeCents: Cents;
+  worksReturned: InsolvencyOutcome["worksReturned"];
+  /** Works under a sale still open at the failure. */
+  worksUnderOpenSale: { saleId: Id; workTitle: string; buyerName: string }[];
+}
+
+/** One artist's slice of the statement of affairs, built by filtering it, not recomputing. */
+export function artistAtFailure(
+  s: Snapshot,
+  artistId: Id,
+): ArtistAtFailure | null {
+  for (const g of s.galleries.filter((x) => x.status === "insolvent")) {
+    const st = statementOfAffairs(s, g.id);
+    if (!st) continue;
+    const mine = st.openSales.filter((r) => r.artistId === artistId);
+    const result: ArtistAtFailure = {
+      galleryId: g.id,
+      galleryName: g.name,
+      paidAtFailure: st.trustPaidOut.filter((t) => t.artistId === artistId),
+      paidOnDeadlineBeforeCents: mine.reduce(
+        (t, r) => t + r.paidOnDeadlineCents,
+        0,
+      ),
+      worksReturned: st.outcome.worksReturned.filter(
+        (w) => w.artistId === artistId,
+      ),
+      worksUnderOpenSale: mine.map((r) => ({
+        saleId: r.saleId,
+        workTitle: r.workTitle,
+        buyerName: r.buyerName,
+      })),
+    };
+    if (
+      result.paidAtFailure.length ||
+      result.worksReturned.length ||
+      result.worksUnderOpenSale.length
+    ) {
+      return result;
+    }
+  }
+  return null;
+}

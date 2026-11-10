@@ -155,106 +155,6 @@ export default function BooksPage() {
           </p>
         )}
 
-        {affairs && (
-          <Card title="Statement of affairs">
-            <div className="grid gap-5 text-[13px] md:grid-cols-2">
-              <div>
-                <h3 className="mb-1 font-semibold text-trust">
-                  Never the gallery&apos;s
-                </h3>
-                <ul className="space-y-1">
-                  {affairs.trustPaidOut.map((t) => (
-                    <li key={t.payoutId} className="flex justify-between gap-3">
-                      <span>
-                        {name(t.artistId)}, paid from trust at the failure
-                        <span className="num block text-[10px] text-faint">
-                          funded by {t.bankIds.join(", ")}
-                        </span>
-                      </span>
-                      <Money cents={t.amountCents} />
-                    </li>
-                  ))}
-                  {affairs.outcome.worksReturned.map((w) => (
-                    <li key={w.artworkId} className="text-muted">
-                      {w.title} returned to {name(w.artistId)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h3 className="mb-1 font-semibold text-danger">The estate</h3>
-                <ul className="space-y-1">
-                  <li className="flex justify-between gap-3">
-                    <span>Operating cash turned over to the administrator</span>
-                    <Money cents={affairs.estateCashCents} />
-                  </li>
-                  <li className="flex justify-between gap-3">
-                    <span>
-                      Buyers&apos; claims (the gallery&apos;s part of what they
-                      paid)
-                    </span>
-                    <Money cents={affairs.buyerClaimsCents} />
-                  </li>
-                </ul>
-              </div>
-            </div>
-            {affairs.openSales.length > 0 && (
-              <table className="mt-4 w-full text-[12px]">
-                <thead>
-                  <tr className="border-b border-line text-left text-[11px] text-muted">
-                    <th className="py-1.5 font-medium">Open sale at failure</th>
-                    <th className="py-1.5 text-right font-medium">
-                      Buyer paid
-                    </th>
-                    <th className="py-1.5 text-right font-medium">
-                      To artist on deadline, before
-                    </th>
-                    <th className="py-1.5 text-right font-medium">
-                      To artist from trust at failure
-                    </th>
-                    <th className="py-1.5 text-right font-medium">
-                      Buyer&apos;s claim
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {affairs.openSales.map((r) => (
-                    <tr key={r.saleId} className="border-b border-line/60">
-                      <td className="py-1.5">
-                        {r.workTitle} ({name(r.artistId)}), {r.buyerName}
-                        <span className="block text-[10px] text-faint">
-                          Work recorded as sold, sale not completed
-                        </span>
-                      </td>
-                      <td className="py-1.5 text-right">
-                        <Money cents={r.paidCents} />
-                      </td>
-                      <td className="py-1.5 text-right">
-                        <Money cents={r.paidOnDeadlineCents} />
-                      </td>
-                      <td className="py-1.5 text-right">
-                        <Money cents={r.paidAtFailureCents} />
-                      </td>
-                      <td className="py-1.5 text-right">
-                        <Money cents={r.buyerClaimCents} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            <p className="mt-3 text-[11px] text-muted">
-              Ties out: estate cash plus trust paid at failure equals operating
-              plus trust in the journal before the failure, and buyers&apos;
-              claims equal buyer deposits (2020) in the ledger. Buyers&apos;
-              claims are the gallery&apos;s part of what the records show they
-              paid; Rescrow doesn&apos;t compute what the administrator will pay
-              on them, or decide who the works under open sales belong to. Not
-              legal advice.
-            </p>
-          </Card>
-        )}
-
         <div className="flex flex-wrap gap-2 text-[12px]">
           <Badge ok={tb.balanced}>
             Trial balance {tb.balanced ? "balances" : "is off"}: debits{" "}
@@ -393,6 +293,106 @@ export default function BooksPage() {
             </div>
           </Card>
         </div>
+
+        {affairs && (
+          <Card title="Statement of affairs">
+            <div className="grid gap-5 text-[13px] md:grid-cols-2">
+              <div>
+                <h3 className="mb-1 font-semibold text-trust">
+                  Never the gallery&apos;s
+                </h3>
+                <ul className="space-y-1">
+                  {affairs.trustPaidOut.map((t) => (
+                    <li key={t.payoutId} className="flex justify-between gap-3">
+                      <span>
+                        {name(t.artistId)}, paid from trust at the failure
+                        <span className="num block text-[10px] text-faint">
+                          funded by {t.bankIds.join(", ")}
+                        </span>
+                      </span>
+                      <Money cents={t.amountCents} />
+                    </li>
+                  ))}
+                  {affairs.outcome.worksReturned.map((w) => (
+                    <li key={w.artworkId} className="text-muted">
+                      {w.title} returned to {name(w.artistId)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="mb-1 font-semibold text-danger">The estate</h3>
+                <ul className="space-y-1">
+                  <li className="flex justify-between gap-3">
+                    <span>Operating cash turned over to the administrator</span>
+                    <Money cents={affairs.estateCashCents} />
+                  </li>
+                  <li className="flex justify-between gap-3">
+                    <span>
+                      Buyers&apos; deposits (the gallery&apos;s part of what
+                      they paid)
+                    </span>
+                    <Money cents={affairs.buyerClaimsCents} />
+                  </li>
+                </ul>
+              </div>
+            </div>
+            {affairs.openSales.length > 0 && (
+              <table className="mt-4 w-full text-[12px]">
+                <thead>
+                  <tr className="border-b border-line text-left text-[11px] text-muted">
+                    <th className="py-1.5 font-medium">Open sale at failure</th>
+                    <th className="py-1.5 text-right font-medium">
+                      Buyer paid
+                    </th>
+                    <th className="py-1.5 text-right font-medium">
+                      To artist on deadline, before
+                    </th>
+                    <th className="py-1.5 text-right font-medium">
+                      To artist from trust at failure
+                    </th>
+                    <th className="py-1.5 text-right font-medium">
+                      Gallery&apos;s part, held as the buyer&apos;s deposit
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {affairs.openSales.map((r) => (
+                    <tr key={r.saleId} className="border-b border-line/60">
+                      <td className="py-1.5">
+                        {r.workTitle} ({name(r.artistId)}), {r.buyerName}
+                        <span className="block text-[10px] text-faint">
+                          Work recorded as sold, sale not completed
+                        </span>
+                      </td>
+                      <td className="py-1.5 text-right">
+                        <Money cents={r.paidCents} />
+                      </td>
+                      <td className="py-1.5 text-right">
+                        <Money cents={r.paidOnDeadlineCents} />
+                      </td>
+                      <td className="py-1.5 text-right">
+                        <Money cents={r.paidAtFailureCents} />
+                      </td>
+                      <td className="py-1.5 text-right">
+                        <Money cents={r.buyerClaimCents} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="mt-3 text-[11px] text-muted">
+              Ties out: estate cash plus trust paid at failure equals operating
+              plus trust in the journal before the failure, and buyers&apos;
+              deposits equal 2020 in the ledger. Buyers&apos; deposits are the
+              gallery&apos;s part of what the records show each buyer paid.
+              Rescrow doesn&apos;t decide what an open-sale buyer is owed,
+              whether that is the work or a refund of everything they paid, or
+              what the administrator will pay. Not legal advice.
+            </p>
+          </Card>
+        )}
 
         <Card
           title="Commission earned"

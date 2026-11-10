@@ -9,6 +9,7 @@ import { Card, Money, Pill, shortDate, Swatch } from "@/components/ui";
 import { useSnapshot } from "@/components/useSnapshot";
 import { artistTotals, paidSoFar } from "@/lib/escrow/engine";
 import { artistPayments, paymentScorecard } from "@/lib/artist";
+import { artistAtFailure } from "@/lib/insolvency";
 import { formatCents, methodLabel, shareOf } from "@/lib/money";
 
 export default function ArtistPortal() {
@@ -29,6 +30,7 @@ export default function ArtistPortal() {
 
   const gallery = snapshot.galleries.find((g) => g.id === artist.galleryId);
   const totals = artistTotals(snapshot, artist.id);
+  const failure = artistAtFailure(snapshot, artist.id);
   const agreement = snapshot.agreements.find((a) => a.artistId === artist.id);
   const terms = agreement?.terms;
   const works = snapshot.artworks.filter((w) => w.artistId === artist.id);
@@ -56,6 +58,69 @@ export default function ArtistPortal() {
           </h1>
           <p className="text-muted">Represented by {gallery?.name}</p>
         </div>
+
+        {failure && (
+          <section className="rounded-lg border border-danger/30 bg-danger/5 p-5 text-sm">
+            <h2 className="font-semibold text-danger">
+              When {failure.galleryName} failed
+            </h2>
+            {failure.paidAtFailure.length > 0 ? (
+              <>
+                <p className="mt-1 text-ink/80">
+                  Your share of each buyer payment was held in trust, so it was
+                  paid to you, not to the gallery&apos;s creditors.
+                </p>
+                <ul className="mt-2 space-y-1.5">
+                  {failure.paidAtFailure.map((p) => (
+                    <li
+                      key={p.payoutId}
+                      className="flex flex-wrap items-baseline justify-between gap-2"
+                    >
+                      <span>
+                        <Money
+                          cents={p.amountCents}
+                          className="font-semibold"
+                        />{" "}
+                        <span className="num text-[11px] text-faint">
+                          from bank payments {p.bankIds.join(", ")}
+                        </span>
+                      </span>
+                      <Link
+                        href={`/artist/${artist.id}/statements/${p.payoutId}`}
+                        className="text-xs underline"
+                      >
+                        Statement
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="mt-1 text-ink/80">
+                None of your money was in trust when it failed.
+              </p>
+            )}
+            {failure.paidOnDeadlineBeforeCents > 0 && (
+              <p className="mt-2 text-ink/80">
+                <Money cents={failure.paidOnDeadlineBeforeCents} /> had already
+                been paid to you on its deadline, before the failure.
+              </p>
+            )}
+            {failure.worksReturned.length > 0 && (
+              <p className="mt-2 text-ink/80">
+                Returned to you:{" "}
+                {failure.worksReturned.map((w) => w.title).join(", ")}.
+              </p>
+            )}
+            {failure.worksUnderOpenSale.map((w) => (
+              <p key={w.saleId} className="mt-2 text-ink/80">
+                Under a sale that hadn&apos;t completed: {w.workTitle}, to{" "}
+                {w.buyerName}. Rescrow records this sale as open. It
+                doesn&apos;t decide who the work belongs to.
+              </p>
+            ))}
+          </section>
+        )}
 
         <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
           <div className="rounded-lg border border-trust/30 bg-trust-soft p-6">
