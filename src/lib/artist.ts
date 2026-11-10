@@ -86,6 +86,8 @@ export function artistPayments(s: Snapshot, artistId: Id): ArtistPaymentRow[] {
       } else if (how === "insolvency") {
         summary =
           "Paid out of trust when the gallery became insolvent, not to its creditors";
+      } else if (daysBeforeDeadline === 0) {
+        summary = "Paid when the sale completed, on the deadline day";
       } else if (daysBeforeDeadline !== null) {
         summary = `Paid when the sale completed, ${daysBeforeDeadline} day${daysBeforeDeadline === 1 ? "" : "s"} before the deadline`;
       } else {
@@ -140,12 +142,18 @@ export function paymentScorecard(s: Snapshot, artistId: Id): PaymentScorecard {
   if (completion > 0) {
     const allEarly = rows
       .filter((r) => r.how === "completion")
-      .every((r) => r.daysBeforeDeadline === null || r.daysBeforeDeadline >= 0);
+      .every((r) => r.daysBeforeDeadline === null || r.daysBeforeDeadline > 0);
     parts.push(
       `${completion} ${plural(completion)} paid when the sale completed${allEarly ? ", all before the deadline" : ""}`,
     );
   }
-  if (deadline > 0) parts.push(`${deadline} paid on its deadline`);
+  if (deadline > 0) {
+    parts.push(
+      deadline === 1
+        ? "1 paid on its deadline"
+        : `${deadline} paid on their deadlines`,
+    );
+  }
   if (insolvency > 0) {
     parts.push(`${insolvency} paid out of trust when the gallery failed`);
   }

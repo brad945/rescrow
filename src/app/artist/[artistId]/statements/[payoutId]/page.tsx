@@ -122,7 +122,9 @@ export default function StatementPage() {
             {rows.map(({ hold, index, payment }) => (
               <tr key={hold.id} className="border-b border-line/70">
                 <td className="py-2">
-                  {index} of {sale?.installments}
+                  {sale && index <= sale.installments
+                    ? `${index} of ${sale.installments}`
+                    : `Payment ${index}`}
                   {payment && (
                     <span className="text-muted">
                       {" "}

@@ -38,7 +38,8 @@ function download(name: string, type: string, text: string) {
   a.href = url;
   a.download = name;
   a.click();
-  URL.revokeObjectURL(url);
+  // Some browsers cancel the download if the URL is revoked immediately.
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
 const MATRIX = flowMatrix();
@@ -114,7 +115,13 @@ export default function BooksPage() {
                   toCsv(snapshot, lines, namer),
                 )
               }
-              className="rounded border border-line bg-card px-3 py-1.5 text-sm hover:border-ink/30"
+              disabled={useChart && refusals.length > 0}
+              title={
+                useChart && refusals.length > 0
+                  ? "Fix the chart mapping first"
+                  : undefined
+              }
+              className="rounded border border-line bg-card px-3 py-1.5 text-sm hover:border-ink/30 disabled:opacity-40"
             >
               Download CSV
             </button>
@@ -127,7 +134,13 @@ export default function BooksPage() {
                   toQuickBooksJson(lines, namer),
                 )
               }
-              className="rounded border border-line bg-card px-3 py-1.5 text-sm hover:border-ink/30"
+              disabled={useChart && refusals.length > 0}
+              title={
+                useChart && refusals.length > 0
+                  ? "Fix the chart mapping first"
+                  : undefined
+              }
+              className="rounded border border-line bg-card px-3 py-1.5 text-sm hover:border-ink/30 disabled:opacity-40"
             >
               Download QuickBooks JSON
             </button>

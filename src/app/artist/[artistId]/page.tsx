@@ -174,7 +174,10 @@ export default function ArtistPortal() {
                   >
                     <div className="flex justify-between gap-2">
                       <span>
-                        {r.workTitle}, {r.installment} of {r.installments}
+                        {r.workTitle},{" "}
+                        {r.installment <= r.installments
+                          ? `${r.installment} of ${r.installments}`
+                          : `payment ${r.installment}`}
                       </span>
                       <span>
                         your share <Money cents={r.shareCents} />
