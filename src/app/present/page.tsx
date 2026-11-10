@@ -176,13 +176,13 @@ export default function PresentPage() {
                     {step.caption}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
                   {step.advance && (
                     <button
                       type="button"
                       onClick={advance}
                       disabled={busy}
-                      className="rounded border border-line bg-card px-3 py-2 text-sm text-muted hover:text-ink disabled:opacity-40"
+                      className="rounded border border-line bg-card px-2 py-1.5 text-xs whitespace-nowrap text-muted hover:text-ink disabled:opacity-40"
                     >
                       {step.advance.label}{" "}
                       <kbd className="num text-faint">T</kbd>
@@ -193,7 +193,7 @@ export default function PresentPage() {
                       type="button"
                       onClick={attempt}
                       disabled={busy}
-                      className="rounded border border-line bg-card px-3 py-2 text-sm text-muted hover:text-danger disabled:opacity-40"
+                      className="rounded border border-line bg-card px-2 py-1.5 text-xs whitespace-nowrap text-muted hover:text-danger disabled:opacity-40"
                     >
                       Gallery tries to spend trust{" "}
                       <kbd className="num text-faint">G</kbd>
@@ -204,7 +204,7 @@ export default function PresentPage() {
                       type="button"
                       onClick={fail}
                       disabled={busy}
-                      className="rounded border border-line bg-card px-3 py-2 text-sm text-muted hover:text-danger disabled:opacity-40"
+                      className="rounded border border-line bg-card px-2 py-1.5 text-xs whitespace-nowrap text-muted hover:text-danger disabled:opacity-40"
                     >
                       Gallery goes under <kbd className="num text-faint">B</kbd>
                     </button>
@@ -214,7 +214,7 @@ export default function PresentPage() {
                       type="button"
                       onClick={cancel}
                       disabled={busy}
-                      className="rounded border border-line bg-card px-3 py-2 text-sm text-muted hover:text-danger disabled:opacity-40"
+                      className="rounded border border-line bg-card px-2 py-1.5 text-xs whitespace-nowrap text-muted hover:text-danger disabled:opacity-40"
                     >
                       Buyer cancels <kbd className="num text-faint">C</kbd>
                     </button>
@@ -224,7 +224,7 @@ export default function PresentPage() {
                       type="button"
                       onClick={next}
                       disabled={busy}
-                      className="rounded bg-ink px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                      className="rounded bg-ink px-4 py-2 text-sm font-medium whitespace-nowrap text-white disabled:opacity-50"
                     >
                       {busy && step.index === 0
                         ? "Agent reading…"
