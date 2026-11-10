@@ -20,3 +20,14 @@ Lane A appends here; lane B checks items off. Newest at the bottom.
 - `/present` has new keys: `G` gallery tries to spend trust, `T` jump 61 days, `D` bank redelivery. The optional beats are now compact one-line buttons. All are optional; the 2:30 script works without them. `B` hides after `T`, so the insolvency numbers can't be contradicted.
 - New page `/books` (in the nav). New routes: `/api/demo/attempt`, `/api/demo/advance`, `/api/demo/redeliver`.
 - Gate: `bash scripts/gate.sh` (CI runs it). `src/app/api/demo-flow.test.ts` drives the recorded demo through the routes; if it fails, the demo is broken.
+
+### Added later the same night
+
+- New pages and sections, none on the recorded `/present` take except one banner line:
+  - `/books`: commission earned (accrual or cash), payout deadlines, month-end close, export to the gallery's own chart, and, after `B`, the statement of affairs.
+  - `/gallery`: click either balance for the records that sum to it; "Why these rules" card at the bottom.
+  - `/artist/[id]`: every buyer payment with its bank id and when each share was paid; the artist's own three-way check; after `B`, a "When the gallery failed" card.
+  - `/lab`: "Try to break the books" (runs on a copy in the browser, never the store) and "Check the cents".
+- The insolvency banner on `/present` gained two lines: the same failure without a separate account, and the §12.01 quote. The script has it as an optional line.
+- Every payment and every cancellation now pays any share already past its deadline first. A deadline payout is stamped at its deadline.
+- Optional snapshot field `closedPeriods`; `SEED_VERSION` is 4.
