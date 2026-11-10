@@ -13,14 +13,11 @@ export default function ArtistsPage() {
       <Nav rampConnected={snapshot?.galleries[0]?.rampConnected} />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
         <div>
-          <p className="text-sm text-muted">Artist portal</p>
-          <h1 className="font-serif text-4xl font-semibold tracking-tight">
-            Who are you?
-          </h1>
+          <p className="text-sm text-muted">Lowline Gallery</p>
+          <h1 className="text-[22px] font-semibold tracking-tight">Artists</h1>
           <p className="mt-2 max-w-xl text-muted">
-            Each artist gets their own view of what sold, what is locked for
-            them, and when it pays out. No more waiting on the gallery to tell
-            them.
+            What each artist sees: what sold, what is held in trust for them,
+            and when they were paid.
           </p>
         </div>
         {!snapshot && <p className="text-muted">{error ?? "Loading…"}</p>}
@@ -41,28 +38,26 @@ export default function ArtistsPage() {
                     <Swatch key={w.id} artwork={w} size={44} />
                   ))}
                 </div>
-                <p className="mt-4 font-serif text-xl font-semibold">
-                  {artist.name}
-                </p>
+                <p className="mt-3 text-base font-semibold">{artist.name}</p>
                 <p className="text-sm text-muted">{artist.email}</p>
                 <div className="mt-4 flex gap-6 text-sm">
                   <div>
                     <Money
                       cents={totals.heldCents}
-                      className="text-lg font-semibold text-lock"
+                      className="text-lg font-semibold text-trust"
                     />
-                    <p className="text-xs text-muted">locked for them</p>
+                    <p className="text-xs text-muted">in trust</p>
                   </div>
                   <div>
                     <Money
                       cents={totals.paidCents}
-                      className="text-lg font-semibold text-paid"
+                      className="text-lg font-semibold text-ink"
                     />
                     <p className="text-xs text-muted">paid out</p>
                   </div>
                 </div>
                 <p className="mt-4 text-sm font-medium group-hover:underline">
-                  Open portal
+                  Open their view
                 </p>
               </Link>
             );

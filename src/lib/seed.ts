@@ -29,9 +29,21 @@ Executed June 18, 2026.`;
 
 const INES_AGREEMENT = `LOWLINE GALLERY / INES DUARTE: CONSIGNMENT
 
-The Gallery shall sell the consigned works at the agreed retail price. From the purchase price received, the Gallery keeps half and the Artist keeps half. Shipping and crating for sold works are paid by the buyer and are excluded from the split.
+This agreement is made between Lowline Gallery LLC, 214 Orchard Street, New York, NY 10002 (the "Gallery"), and Ines Duarte (the "Artist").
 
-Proceeds owed to the Artist shall be paid no later than sixty (60) days following receipt by the Gallery. The Gallery acknowledges that the Artist's proceeds are trust property and may not be used for Gallery operating expenses.
+1. Works. The Artist consigns to the Gallery the works listed on the attached inventory, including Orchard in Rain (2026) and Threshold (2024, bronze, edition 2 of 5).
+
+2. Pricing. The Gallery shall sell the consigned works at the agreed retail price. Any discount above ten percent requires the Artist's written approval by email.
+
+3. Proceeds. From the purchase price received, the Gallery keeps half and the Artist keeps half. Shipping and crating for sold works are paid by the buyer and are excluded from the split.
+
+4. Payment. Proceeds owed to the Artist shall be paid no later than sixty (60) days following receipt by the Gallery. Where the buyer pays over time, this period runs from receipt of each payment.
+
+5. Trust. The Gallery acknowledges that the Artist's proceeds are trust property under New York Arts and Cultural Affairs Law section 12.01 and may not be used for Gallery operating expenses.
+
+6. Insurance and care. The Gallery insures the works at the Artist's share of retail value while they are in its possession.
+
+7. Term. This agreement runs for one year and renews unless either party gives thirty days' notice.
 
 Dated September 9, 2026.`;
 
@@ -66,6 +78,7 @@ export const FIXTURE_TERMS: Record<string, AgreementTerms> = {
     payoutDays: 60,
     notes: [
       "Shipping and crating are paid by the buyer and are not part of the split.",
+      "Discounts over 10% need the artist's written approval.",
     ],
     citations: [
       "the Gallery keeps half and the Artist keeps half",
@@ -82,7 +95,7 @@ export function createSeed(): Snapshot {
         name: "Lowline Gallery",
         city: "New York, NY",
         rampConnected: true,
-        operatingBalanceCents: 4_812_000,
+        operatingBalanceCents: 4_183_627,
       },
     ],
     artists: [
@@ -213,7 +226,7 @@ export function createSeed(): Snapshot {
         installments: 1,
         artistShareBps: 5000,
         status: "paid",
-        createdAt: "2026-10-14T15:20:00.000Z",
+        createdAt: "2026-10-14T15:20:44.000Z",
       },
       {
         id: "sale_lamps",
@@ -225,7 +238,7 @@ export function createSeed(): Snapshot {
         installments: 3,
         artistShareBps: 6000,
         status: "open",
-        createdAt: "2026-10-28T18:05:00.000Z",
+        createdAt: "2026-10-28T18:05:09.000Z",
       },
     ],
     payments: [
@@ -235,7 +248,7 @@ export function createSeed(): Snapshot {
         galleryId: "gal_lowline",
         amountCents: 1_800_000,
         method: "wire",
-        receivedAt: "2026-10-16T14:02:00.000Z",
+        receivedAt: "2026-10-16T14:02:37.000Z",
       },
       {
         id: "pay_lamps_1",
@@ -243,7 +256,7 @@ export function createSeed(): Snapshot {
         galleryId: "gal_lowline",
         amountCents: 400_000,
         method: "ach",
-        receivedAt: "2026-10-30T16:41:00.000Z",
+        receivedAt: "2026-10-30T16:41:12.000Z",
       },
     ],
     holds: [
@@ -255,8 +268,8 @@ export function createSeed(): Snapshot {
         galleryId: "gal_lowline",
         amountCents: 900_000,
         status: "paid",
-        lockedAt: "2026-10-16T14:02:00.000Z",
-        releasedAt: "2026-10-16T17:30:00.000Z",
+        lockedAt: "2026-10-16T14:02:37.000Z",
+        releasedAt: "2026-10-16T14:02:41.000Z",
       },
       {
         id: "hold_lamps_1",
@@ -266,7 +279,7 @@ export function createSeed(): Snapshot {
         galleryId: "gal_lowline",
         amountCents: 240_000,
         status: "locked",
-        lockedAt: "2026-10-30T16:41:00.000Z",
+        lockedAt: "2026-10-30T16:41:12.000Z",
         releasedAt: null,
       },
     ],
@@ -277,33 +290,33 @@ export function createSeed(): Snapshot {
         galleryId: "gal_lowline",
         amountCents: 900_000,
         holdIds: ["hold_tidewater_1"],
-        paidAt: "2026-10-16T17:30:00.000Z",
+        paidAt: "2026-10-16T14:02:41.000Z",
       },
     ],
     activity: [
       {
         id: "act_seed_4",
         kind: "hold_locked",
-        at: "2026-10-30T16:41:00.000Z",
+        at: "2026-10-30T16:41:12.000Z",
         galleryId: "gal_lowline",
         artistId: "art_theo",
         message:
-          "Locked $2,400.00 for Theo Lindqvist from installment 1 of 3 on Four Lamps",
+          "Moved $2,400.00 to artist trust for Theo Lindqvist, installment 1 of 3 on Four Lamps",
         amountCents: 240_000,
       },
       {
         id: "act_seed_3",
         kind: "payment_received",
-        at: "2026-10-30T16:41:00.000Z",
+        at: "2026-10-30T16:41:12.000Z",
         galleryId: "gal_lowline",
         artistId: "art_theo",
-        message: "ACH of $4,000.00 from Hollis Family Trust landed in Ramp",
+        message: "ACH received from Hollis Family Trust, $4,000.00",
         amountCents: 400_000,
       },
       {
         id: "act_seed_2",
         kind: "payout_sent",
-        at: "2026-10-16T17:30:00.000Z",
+        at: "2026-10-16T14:02:41.000Z",
         galleryId: "gal_lowline",
         artistId: "art_mara",
         message: "Paid Mara Okafor $9,000.00 for Tidewater, Evening",
@@ -312,10 +325,10 @@ export function createSeed(): Snapshot {
       {
         id: "act_seed_1",
         kind: "payment_received",
-        at: "2026-10-16T14:02:00.000Z",
+        at: "2026-10-16T14:02:37.000Z",
         galleryId: "gal_lowline",
         artistId: "art_mara",
-        message: "Wire of $18,000.00 from R. Castellanos landed in Ramp",
+        message: "Wire received from R. Castellanos, $18,000.00",
         amountCents: 1_800_000,
       },
     ],

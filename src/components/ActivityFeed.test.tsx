@@ -16,7 +16,9 @@ describe("ActivityFeed", () => {
     render(<ActivityFeed snapshot={createSeed()} limit={1} />);
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(1);
-    expect(items[0]).toHaveTextContent(/Locked \$2,400\.00 for Theo/);
+    expect(items[0]).toHaveTextContent(
+      /Moved \$2,400\.00 to artist trust for Theo/,
+    );
   });
 
   it("says so when there is nothing to show", () => {

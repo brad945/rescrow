@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { Nav } from "@/components/Nav";
 import { ActivityFeed } from "@/components/ActivityFeed";
+import { GalleryBalances } from "@/components/GalleryAccount";
 import { Card, Money, Swatch } from "@/components/ui";
 import { useSnapshot } from "@/components/useSnapshot";
 import {
   artistShareOfPayment,
-  galleryTotals,
   nextInstallment,
   paidSoFar,
 } from "@/lib/escrow/engine";
@@ -40,7 +40,6 @@ export default function DemoPage() {
   }
 
   const gallery = snapshot.galleries[0];
-  const totals = galleryTotals(snapshot, gallery.id);
   const available = snapshot.artworks.filter((w) => w.status === "consigned");
   const selected =
     available.find((w) => w.id === artworkId) ?? available[0] ?? null;
@@ -71,14 +70,13 @@ export default function DemoPage() {
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm text-muted">Simulated Ramp bank feed</p>
-            <h1 className="font-serif text-4xl font-semibold tracking-tight">
-              Demo controls
+            <h1 className="text-[22px] font-semibold tracking-tight">
+              Simulator
             </h1>
-            <p className="mt-2 max-w-xl text-muted">
-              Play the buyer and the bank. Every button here is something that
-              happens in the real world; Rescrow reacts the same way it would to
-              a live Ramp account.
+            <p className="mt-1 max-w-xl text-sm text-muted">
+              Stands in for the buyer and for incoming transfers to the
+              gallery&apos;s Ramp account. In production these arrive from
+              Ramp&apos;s banking transactions feed.
             </p>
           </div>
           <button
@@ -87,7 +85,7 @@ export default function DemoPage() {
             onClick={() => act("/api/demo/reset")}
             className="rounded-md border border-line bg-card px-3 py-2 text-sm hover:border-ink/40 disabled:opacity-50"
           >
-            Reset demo data
+            Reset data
           </button>
         </div>
 
@@ -100,28 +98,12 @@ export default function DemoPage() {
           </div>
         )}
 
-        <div className="grid gap-3 text-sm sm:grid-cols-3">
-          <MiniStat
-            label="Gallery can spend"
-            cents={totals.operatingCents}
-            tone="text-gallery"
-          />
-          <MiniStat
-            label="Locked for artists"
-            cents={totals.lockedCents}
-            tone="text-lock"
-          />
-          <MiniStat
-            label="Paid to artists"
-            cents={totals.paidToArtistsCents}
-            tone="text-paid"
-          />
-        </div>
+        <GalleryBalances snapshot={snapshot} />
 
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <div className="space-y-6">
             {unread.length > 0 && (
-              <Card title="Step 0: agent reads the agreement">
+              <Card title="Waiting on the agent">
                 <ul className="space-y-3">
                   {unread.map((a) => {
                     const artist = snapshot.artists.find(
@@ -146,7 +128,7 @@ export default function DemoPage() {
                           onClick={() =>
                             act("/api/agent/read", { agreementId: a.id })
                           }
-                          className="shrink-0 rounded-md bg-ink px-3 py-2 text-sm font-medium text-paper disabled:opacity-50"
+                          className="shrink-0 rounded-md bg-ink px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
                         >
                           Read agreement
                         </button>
@@ -157,7 +139,7 @@ export default function DemoPage() {
               </Card>
             )}
 
-            <Card title="Step 1: a collector buys a work">
+            <Card title="New sale">
               {available.length === 0 ? (
                 <p className="text-sm text-muted">
                   Every work is sold. Reset the demo to start over.
@@ -224,15 +206,15 @@ export default function DemoPage() {
                       type="button"
                       disabled={busy || !selected || !selectedAgreement?.terms}
                       onClick={closeSale}
-                      className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper disabled:opacity-50"
+                      className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                     >
                       Close the sale
                     </button>
                   </div>
                   {selected && !selectedAgreement?.terms && (
-                    <p className="text-xs text-gallery">
+                    <p className="text-xs text-ink">
                       The agent has to read this artist&apos;s agreement first
-                      (Step 0).
+                      (above).
                     </p>
                   )}
                 </div>
@@ -240,7 +222,7 @@ export default function DemoPage() {
             </Card>
 
             <Card
-              title="Step 2: buyer money lands in Ramp"
+              title="Incoming payments"
               action={
                 <label className="flex items-center gap-2 text-xs text-muted">
                   arrives by
@@ -316,7 +298,7 @@ export default function DemoPage() {
                                 method,
                               })
                             }
-                            className="rounded-md bg-lock px-3 py-2 text-sm font-medium text-paper disabled:opacity-50"
+                            className="rounded-md bg-trust px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
                           >
                             <Money cents={next} /> lands
                           </button>
@@ -364,22 +346,5 @@ export default function DemoPage() {
         </div>
       </main>
     </>
-  );
-}
-
-function MiniStat({
-  label,
-  cents,
-  tone,
-}: {
-  label: string;
-  cents: number;
-  tone: string;
-}) {
-  return (
-    <div className="rounded-lg border border-line bg-card px-4 py-3">
-      <p className="text-xs text-muted">{label}</p>
-      <Money cents={cents} className={`text-lg font-semibold ${tone}`} />
-    </div>
   );
 }

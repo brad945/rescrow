@@ -1,62 +1,56 @@
 import type { ReactNode } from "react";
 import type { Artwork, ArtworkStatus, HoldStatus, SaleStatus } from "@/types";
 import { formatCents } from "@/lib/money";
+import { ArtworkImage } from "@/components/ArtworkImage";
+
+const MINUS = "−";
 
 export function Money({
   cents,
+  signed = false,
   className = "",
 }: {
   cents: number;
+  /** Show + on credits and a true minus on debits, like a bank statement. */
+  signed?: boolean;
   className?: string;
 }) {
-  return <span className={`num ${className}`}>{formatCents(cents)}</span>;
+  const abs = formatCents(Math.abs(cents));
+  const text =
+    cents < 0 ? `${MINUS}${abs}` : signed && cents > 0 ? `+${abs}` : abs;
+  return <span className={`num whitespace-nowrap ${className}`}>{text}</span>;
 }
 
 export function Swatch({
   artwork,
   size = 40,
 }: {
-  artwork: Pick<Artwork, "swatch" | "title">;
+  artwork: Pick<Artwork, "id" | "swatch" | "title">;
   size?: number;
 }) {
-  const [a, b] = artwork.swatch;
-  return (
-    <span
-      role="img"
-      aria-label={artwork.title}
-      className="inline-block shrink-0 rounded-sm border border-line"
-      style={{
-        width: size,
-        height: size,
-        background: `linear-gradient(135deg, ${a} 0 55%, ${b} 55% 100%)`,
-      }}
-    />
-  );
+  return <ArtworkImage artwork={artwork} size={size} />;
 }
 
-const PILL: Record<SaleStatus | HoldStatus | ArtworkStatus, string> = {
-  open: "bg-gallery-soft text-gallery",
-  paid: "bg-paid-soft text-paid",
-  cancelled: "bg-line text-muted",
-  locked: "bg-lock-soft text-lock",
-  refunded: "bg-line text-muted",
-  consigned: "bg-card text-muted border border-line",
-  returned: "bg-line text-muted",
-  sold: "bg-paid-soft text-paid",
+type Status = SaleStatus | HoldStatus | ArtworkStatus;
+
+const STATUS: Record<Status, { label: string; className: string }> = {
+  open: { label: "Paying", className: "text-ink border-ink/25" },
+  paid: { label: "Paid", className: "text-muted border-line" },
+  cancelled: { label: "Cancelled", className: "text-faint border-line" },
+  locked: { label: "In trust", className: "text-trust border-trust/30" },
+  refunded: { label: "Refunded", className: "text-faint border-line" },
+  consigned: { label: "Available", className: "text-muted border-line" },
+  returned: { label: "Returned", className: "text-faint border-line" },
+  sold: { label: "Sold", className: "text-muted border-line" },
 };
 
-const PILL_LABEL: Partial<Record<keyof typeof PILL, string>> = {
-  open: "in progress",
-  locked: "locked for artist",
-  paid: "paid",
-};
-
-export function Pill({ status }: { status: keyof typeof PILL }) {
+export function Pill({ status }: { status: Status }) {
+  const s = STATUS[status];
   return (
     <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${PILL[status]}`}
+      className={`inline-flex items-center rounded border px-1.5 py-px text-[11px] font-medium whitespace-nowrap ${s.className}`}
     >
-      {PILL_LABEL[status] ?? status}
+      {s.label}
     </span>
   );
 }
@@ -66,23 +60,24 @@ export function Card({
   action,
   children,
   className = "",
+  flush = false,
 }: {
   title?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Let tables run edge to edge. */
+  flush?: boolean;
 }) {
   return (
     <section
-      className={`rounded-lg border border-line bg-card p-5 shadow-[0_1px_0_rgba(0,0,0,0.03)] ${className}`}
+      className={`rounded-md border border-line bg-card ${flush ? "" : "p-4"} ${className}`}
     >
       {(title || action) && (
-        <header className="mb-4 flex items-center justify-between gap-3">
-          {title && (
-            <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">
-              {title}
-            </h2>
-          )}
+        <header
+          className={`flex items-center justify-between gap-3 ${flush ? "border-b border-line px-4 py-3" : "mb-3"}`}
+        >
+          {title && <h2 className="text-sm font-semibold">{title}</h2>}
           {action}
         </header>
       )}
@@ -91,46 +86,23 @@ export function Card({
   );
 }
 
-export function Stat({
-  label,
-  cents,
-  tone,
-  hint,
-}: {
-  label: string;
-  cents: number;
-  tone: "lock" | "gallery" | "paid";
-  hint: string;
-}) {
-  const color = {
-    lock: "text-lock",
-    gallery: "text-gallery",
-    paid: "text-paid",
-  }[tone];
-  const bar = { lock: "bg-lock", gallery: "bg-gallery", paid: "bg-paid" }[tone];
-  return (
-    <div className="relative overflow-hidden rounded-lg border border-line bg-card p-5">
-      <span className={`absolute inset-y-0 left-0 w-1 ${bar}`} />
-      <p className="text-sm text-muted">{label}</p>
-      <p className={`mt-1 text-3xl font-semibold ${color}`}>
-        <Money cents={cents} />
-      </p>
-      <p className="mt-2 text-xs text-muted">{hint}</p>
-    </div>
-  );
-}
+const TZ = "America/New_York";
 
-export function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.round(diff / 60_000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  return new Date(iso).toLocaleDateString("en-US", {
+/** "Nov 10, 2:07:52 PM ET": exact, the way a bank shows it. */
+export function stamp(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    timeZone: TZ,
   });
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: TZ,
+  });
+  return `${date}, ${time} ET`;
 }
 
 export function shortDate(iso: string): string {
@@ -138,5 +110,15 @@ export function shortDate(iso: string): string {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: TZ,
   });
+}
+
+/** Short, stable reference shown next to ledger lines, like a bank trace number. */
+export function ref(id: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h = Math.imul(h ^ id.charCodeAt(i), 16777619) >>> 0;
+  }
+  return h.toString(16).toUpperCase().padStart(8, "0");
 }

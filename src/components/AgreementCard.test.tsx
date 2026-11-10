@@ -19,8 +19,8 @@ describe("AgreementCard", () => {
       />,
     );
     expect(screen.getByText("60%")).toBeInTheDocument();
-    expect(screen.getByText("14d")).toBeInTheDocument();
-    expect(screen.getByText("read by agent")).toBeInTheDocument();
+    expect(screen.getByText("14 days")).toBeInTheDocument();
+    expect(screen.getByText("Read by agent")).toBeInTheDocument();
   });
 
   it("asks the agent to read an unread agreement", async () => {
@@ -35,8 +35,29 @@ describe("AgreementCard", () => {
       />,
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "Have the agent read it" }),
+      screen.getByRole("button", { name: "Read with agent" }),
     );
     expect(onRead).toHaveBeenCalledOnce();
+  });
+});
+
+describe("AgreementCard agreement text", () => {
+  it("highlights exactly the clauses the agent cited", async () => {
+    const theo = seed.agreements.find((a) => a.id === "agr_theo")!;
+    const { container } = render(
+      <AgreementCard
+        agreement={theo}
+        artist={artist("art_theo")}
+        busy={false}
+        onRead={() => {}}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show agreement" }),
+    );
+    const marks = Array.from(container.querySelectorAll("mark")).map(
+      (m) => m.textContent,
+    );
+    expect(marks).toEqual(theo.terms!.citations);
   });
 });

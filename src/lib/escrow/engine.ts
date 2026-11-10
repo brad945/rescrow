@@ -201,14 +201,14 @@ export function receivePayment(
     s,
     clock,
     "payment_received",
-    `${methodLabel(method)} of ${formatCents(amount)} from ${sale.buyerName} landed in Ramp`,
+    `${methodLabel(method)} received from ${sale.buyerName}, ${formatCents(amount)}`,
     { ...ref, amountCents: amount },
   );
   log(
     s,
     clock,
     "hold_locked",
-    `Locked ${formatCents(artistShare)} for ${artist.name} from ${index <= sale.installments ? `installment ${index} of ${sale.installments}` : `payment ${index}`} on ${artwork.title}`,
+    `Moved ${formatCents(artistShare)} to artist trust for ${artist.name}, ${index <= sale.installments ? `installment ${index} of ${sale.installments}` : `payment ${index}`} on ${artwork.title}`,
     { ...ref, amountCents: artistShare },
   );
 
@@ -286,7 +286,7 @@ export function cancelSale(
     s,
     clock,
     "sale_cancelled",
-    `${sale.buyerName} backed out of ${artwork.title}; ${artwork.title} is back on the wall`,
+    `${sale.buyerName} cancelled the purchase of ${artwork.title}. Work returned to inventory`,
     { ...ref, amountCents: paid },
   );
   if (lockedTotal > 0) {
@@ -294,7 +294,7 @@ export function cancelSale(
       s,
       clock,
       "hold_refunded",
-      `Returned ${formatCents(lockedTotal)} of locked funds to ${sale.buyerName}; the gallery never touched it`,
+      `Refunded ${formatCents(lockedTotal)} from artist trust to ${sale.buyerName}`,
       { ...ref, amountCents: lockedTotal },
     );
   }
@@ -319,7 +319,7 @@ export function applyTerms(
     s,
     clock,
     "agreement_read",
-    `Agent read ${artist.name}'s agreement: ${args.terms.artistShareBps / 100}% to the artist, paid within ${args.terms.payoutDays} days`,
+    `Agent read ${artist.name}'s agreement. Artist share ${args.terms.artistShareBps / 100}%, payout within ${args.terms.payoutDays} days`,
     { galleryId: agreement.galleryId, artistId: artist.id },
   );
   return s;

@@ -45,27 +45,29 @@ export default function ArtistPortal() {
           <Link href="/artist" className="text-sm text-muted hover:underline">
             Artists
           </Link>
-          <h1 className="font-serif text-4xl font-semibold tracking-tight">
+          <h1 className="text-[22px] font-semibold tracking-tight">
             {artist.name}
           </h1>
           <p className="text-muted">Represented by {gallery?.name}</p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
-          <div className="rounded-lg border border-lock/30 bg-lock-soft p-6">
-            <p className="text-sm font-medium text-lock">Locked for you</p>
-            <p className="mt-1 text-5xl font-semibold text-lock">
+          <div className="rounded-lg border border-trust/30 bg-trust-soft p-6">
+            <p className="text-sm font-medium text-trust">
+              Held in trust for you
+            </p>
+            <p className="mt-1 text-5xl font-semibold text-trust">
               <Money cents={totals.heldCents} />
             </p>
-            <p className="mt-3 max-w-md text-sm text-lock/80">
-              This is your share of buyer payments that have already landed. It
-              sits in trust in the gallery&apos;s Ramp account, walled off from
-              rent and payroll. If the gallery closed tomorrow, it would still
-              be yours.
+            <p className="mt-3 max-w-md text-sm text-trust/80">
+              Your share of buyer payments that have already arrived. It sits in
+              a separate Ramp account the gallery can&apos;t spend from, and
+              under New York law it is trust money, not the gallery&apos;s, even
+              if the gallery closes.
             </p>
             {lockedHolds.length > 0 && (
-              <p className="mt-3 text-xs text-lock/80">
-                Pays out automatically the day the buyer finishes paying.
+              <p className="mt-3 text-xs text-trust/80">
+                Paid to you automatically the day the buyer finishes paying.
               </p>
             )}
           </div>
@@ -74,23 +76,23 @@ export default function ArtistPortal() {
               <p className="text-sm text-muted">Paid to you</p>
               <Money
                 cents={totals.paidCents}
-                className="text-3xl font-semibold text-paid"
+                className="text-3xl font-semibold text-ink"
               />
             </div>
             {terms && (
               <div className="rounded-lg border border-line bg-card p-5 text-sm">
                 <p className="text-muted">
-                  Your agreement, as read by the agent
+                  Your agreement, as the agent read it
                 </p>
                 <p className="mt-1">
                   <span className="num font-semibold">
                     {terms.artistShareBps / 100}%
                   </span>{" "}
-                  of every sale is yours. The law gives the gallery{" "}
+                  of every sale is yours. Your agreement gives the gallery{" "}
                   <span className="num font-semibold">
                     {terms.payoutDays} days
                   </span>
-                  . Rescrow pays you the same day.
+                  . Rescrow pays you the day the buyer finishes paying.
                 </p>
               </div>
             )}
@@ -153,7 +155,7 @@ export default function ArtistPortal() {
                       <div>
                         <Money
                           cents={p.amountCents}
-                          className="font-semibold text-paid"
+                          className="font-semibold text-ink"
                         />
                         <p className="text-xs text-muted">
                           {shortDate(p.paidAt)}

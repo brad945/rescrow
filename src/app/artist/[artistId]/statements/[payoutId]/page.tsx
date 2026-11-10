@@ -58,7 +58,7 @@ export default function StatementPage() {
       <article className="rounded-lg border border-line bg-card p-8 print:border-0 print:p-0">
         <header className="flex items-start justify-between border-b border-line pb-6">
           <div>
-            <p className="font-serif text-2xl font-semibold">Rescrow</p>
+            <p className="text-xl font-semibold tracking-tight">Rescrow</p>
             <p className="text-sm text-muted">Artist payout statement</p>
           </div>
           <div className="text-right text-sm">
@@ -143,10 +143,11 @@ export default function StatementPage() {
         </table>
 
         <p className="mt-8 border-t border-line pt-4 text-xs leading-relaxed text-muted">
-          Each amount above was locked in trust the moment the buyer&apos;s
-          payment landed in {gallery?.name}&apos;s Ramp account, as required by
-          New York Arts and Cultural Affairs Law Article 12, and released to you
-          the same day the sale was paid in full.
+          Each amount above was moved to {gallery?.name}&apos;s artist trust
+          account at Ramp the moment the buyer&apos;s payment arrived, and
+          released to you the day the sale was paid in full. Under New York Arts
+          and Cultural Affairs Law section 12.01, proceeds owed to an artist are
+          trust funds and are not the gallery&apos;s property.
         </p>
       </article>
     </main>

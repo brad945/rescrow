@@ -1,15 +1,15 @@
 import type { ActivityKind, Snapshot } from "@/types";
-import { timeAgo } from "@/components/ui";
+import { stamp } from "@/components/ui";
 
-const DOT: Record<ActivityKind, string> = {
-  sale_created: "bg-ink",
-  payment_received: "bg-gallery",
-  hold_locked: "bg-lock",
-  payout_sent: "bg-paid",
-  sale_cancelled: "bg-danger",
-  hold_refunded: "bg-muted",
-  agreement_read: "bg-lock",
-  reset: "bg-muted",
+const LABEL: Record<ActivityKind, string> = {
+  sale_created: "Sale",
+  payment_received: "Deposit",
+  hold_locked: "Held",
+  payout_sent: "Payout",
+  sale_cancelled: "Cancelled",
+  hold_refunded: "Refund",
+  agreement_read: "Agent",
+  reset: "Reset",
 };
 
 export function ActivityFeed({
@@ -28,15 +28,20 @@ export function ActivityFeed({
     return <p className="text-sm text-muted">Nothing yet.</p>;
   }
   return (
-    <ol className="space-y-3">
+    <ol className="divide-y divide-line">
       {items.map((a) => (
-        <li key={a.id} className="flex gap-3 text-sm">
+        <li
+          key={a.id}
+          className="grid grid-cols-[64px_1fr] gap-2 py-2 text-[13px]"
+        >
           <span
-            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${DOT[a.kind]}`}
-          />
+            className={`pt-px text-[11px] font-medium ${a.kind === "hold_locked" || a.kind === "payout_sent" ? "text-trust" : "text-muted"}`}
+          >
+            {LABEL[a.kind]}
+          </span>
           <div>
             <p className="leading-snug">{a.message}</p>
-            <p className="text-xs text-muted">{timeAgo(a.at)}</p>
+            <p className="num text-[11px] text-faint">{stamp(a.at)}</p>
           </div>
         </li>
       ))}

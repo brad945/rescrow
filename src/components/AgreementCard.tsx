@@ -1,4 +1,9 @@
+"use client";
+
+import { useState } from "react";
 import type { Artist, ConsignmentAgreement } from "@/types";
+import { AgreementText } from "@/components/AgreementText";
+import { shortDate } from "@/components/ui";
 
 export function AgreementCard({
   agreement,
@@ -11,80 +16,90 @@ export function AgreementCard({
   busy: boolean;
   onRead: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const { terms } = agreement;
   return (
-    <article className="flex flex-col rounded-lg border border-line bg-card p-5">
+    <article className="flex flex-col rounded-md border border-line bg-card p-4">
       <header className="flex items-start justify-between gap-2">
         <div>
           <p className="font-medium">{artist?.name}</p>
           <p className="text-xs text-muted">
-            Signed{" "}
-            {new Date(agreement.signedOn).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
+            Consignment agreement, signed {shortDate(agreement.signedOn)}
           </p>
         </div>
-        {terms ? (
-          <span className="rounded-full bg-lock-soft px-2 py-0.5 text-xs font-medium text-lock">
-            read by agent
-          </span>
-        ) : (
-          <span className="rounded-full bg-gallery-soft px-2 py-0.5 text-xs font-medium text-gallery">
-            not read yet
-          </span>
-        )}
+        <span
+          className={`text-[11px] font-medium ${terms ? "text-trust" : "text-muted"}`}
+        >
+          {terms ? "Read by agent" : "Not read"}
+        </span>
       </header>
 
       {terms ? (
-        <div className="mt-4 space-y-3 text-sm">
-          <div className="flex gap-6">
-            <div>
-              <p className="num text-2xl font-semibold text-lock">
-                {terms.artistShareBps / 100}%
-              </p>
-              <p className="text-xs text-muted">to the artist</p>
-            </div>
-            <div>
-              <p className="num text-2xl font-semibold">{terms.payoutDays}d</p>
-              <p className="text-xs text-muted">legal payout window</p>
-            </div>
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <dt className="text-[11px] text-muted">Artist share</dt>
+            <dd className="num text-xl font-medium text-trust">
+              {terms.artistShareBps / 100}%
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-muted">Pay artist within</dt>
+            <dd className="num text-xl font-medium">{terms.payoutDays} days</dd>
           </div>
           {terms.notes.length > 0 && (
-            <ul className="list-disc space-y-1 pl-4 text-muted">
-              {terms.notes.map((n) => (
-                <li key={n}>{n}</li>
-              ))}
-            </ul>
-          )}
-          {terms.citations.length > 0 && (
-            <div className="space-y-1 border-l-2 border-line pl-3 text-xs text-muted italic">
-              {terms.citations.map((c) => (
-                <p key={c}>&ldquo;{c}&rdquo;</p>
-              ))}
+            <div className="col-span-2">
+              <dt className="text-[11px] text-muted">Also in the agreement</dt>
+              <dd>
+                <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-[13px] text-ink/80">
+                  {terms.notes.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+              </dd>
             </div>
           )}
-          {agreement.termsSource && (
-            <p className="text-xs text-muted">
-              Source:{" "}
-              {agreement.termsSource === "model"
-                ? "gpt-oss, live"
-                : "saved agent answer"}
-            </p>
-          )}
-        </div>
+        </dl>
       ) : (
-        <div className="mt-4 flex flex-1 flex-col justify-between gap-4 text-sm">
-          <p className="line-clamp-4 font-serif text-muted">{agreement.text}</p>
+        <p className="mt-3 text-[13px] text-muted">
+          Nothing by {artist?.name.split(" ")[0]} can sell until the agent has
+          read this agreement and the split is on file.
+        </p>
+      )}
+
+      <div className="mt-auto flex items-center gap-3 pt-3">
+        {!terms && (
           <button
             type="button"
             disabled={busy}
             onClick={onRead}
-            className="rounded-md bg-ink px-3 py-2 text-sm font-medium text-paper disabled:opacity-50"
+            className="rounded bg-ink px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
           >
-            Have the agent read it
+            Read with agent
           </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="text-[13px] text-muted underline-offset-2 hover:text-ink hover:underline"
+          aria-expanded={open}
+        >
+          {open ? "Hide agreement" : "Show agreement"}
+        </button>
+        {agreement.termsSource && (
+          <span className="ml-auto text-[11px] text-faint">
+            {agreement.termsSource === "model"
+              ? "gpt-oss-20b, local"
+              : "cached answer"}
+          </span>
+        )}
+      </div>
+
+      {open && (
+        <div className="mt-3 max-h-72 overflow-y-auto rounded border border-line bg-row p-3">
+          <AgreementText
+            text={agreement.text}
+            citations={terms?.citations ?? []}
+          />
         </div>
       )}
     </article>

@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --paper: #f6f3ee;
-  --card: #fffdf9;
-  --ink: #1c1a17;
-  --muted: #6f6a62;
-  --line: #e4ded3;
-  --lock: #2f5d50;
-  --lock-soft: #e3eee9;
-  --gallery: #8a5a2b;
-  --gallery-soft: #f3e8da;
-  --paid: #3d5a80;
-  --paid-soft: #e4ebf3;
-  --danger: #a23b2c;
+  --paper: #f4f2ee;
+  --card: #ffffff;
+  --ink: #18181b;
+  --muted: #6b6a66;
+  --faint: #a19f99;
+  --line: #e3e0da;
+  --row: #f8f7f4;
+  /* One accent: money held in trust for artists. */
+  --trust: #1f5c4a;
+  --trust-soft: #e6efea;
+  --danger: #a3322a;
+  --highlight: #fbe9a6;
 }
 
 @theme inline {
@@ -20,26 +20,59 @@
   --color-card: var(--card);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
+  --color-faint: var(--faint);
   --color-line: var(--line);
-  --color-lock: var(--lock);
-  --color-lock-soft: var(--lock-soft);
-  --color-gallery: var(--gallery);
-  --color-gallery-soft: var(--gallery-soft);
-  --color-paid: var(--paid);
-  --color-paid-soft: var(--paid-soft);
+  --color-row: var(--row);
+  --color-trust: var(--trust);
+  --color-trust-soft: var(--trust-soft);
   --color-danger: var(--danger);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-serif: var(--font-fraunces);
+  --color-highlight: var(--highlight);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --font-doc: var(--font-source-serif);
 }
 
 body {
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-plex-sans), system-ui, sans-serif;
 }
 
 .num {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+@keyframes flash {
+  from {
+    background-color: var(--highlight);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.flash {
+  animation: flash 1.6s ease-out;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.slide-in {
+  animation: slide-in 0.35s ease-out;
 }

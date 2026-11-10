@@ -1,14 +1,26 @@
 import type { Metadata } from "next";
-import { Fraunces, Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
-const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
-const serif = Fraunces({ variable: "--font-fraunces", subsets: ["latin"] });
+const sans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+const mono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
+const serif = Source_Serif_4({
+  variable: "--font-source-serif",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
   title: "Rescrow",
-  description: "Artists' money, locked the moment it lands.",
+  description:
+    "Holds an artist's share of every sale in trust the moment the buyer pays.",
 };
 
 export default function RootLayout({
