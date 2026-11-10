@@ -189,6 +189,10 @@ export interface Snapshot {
   journal: JournalEntry[];
   /** One record per cancelled sale: where the buyer's money came back from. */
   refunds: Refund[];
+  /** Which seed this data was created from; older files are reseeded. */
+  seedVersion?: number;
+  /** Demo clock: how far ahead of the wall clock this snapshot's "now" is. */
+  clockOffsetMs?: number;
 }
 
 /**
@@ -280,6 +284,11 @@ export interface InsolvencyRequest {
  * go, to pay rent from operating or to let a creditor sweep it. The attempt is
  * always refused; the refusal is recorded and nothing moves.
  */
+export interface AdvanceClockRequest {
+  /** Whole days to move the demo clock forward, 1 to 120. */
+  days: number;
+}
+
 export interface TrustMoveRequest {
   saleId: Id;
   kind: "rent" | "creditor";

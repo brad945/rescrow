@@ -11,6 +11,7 @@ import type { Snapshot } from "@/types";
 import { stepFor } from "@/components/story";
 import { reconcile } from "@/lib/escrow/reconcile";
 import { POST as readAgreement } from "./agent/read/route";
+import { POST as advance } from "./demo/advance/route";
 import { POST as attempt } from "./demo/attempt/route";
 import { POST as cancel } from "./demo/cancel/route";
 import { POST as insolvency } from "./demo/insolvency/route";
@@ -27,6 +28,7 @@ const ROUTES: Record<string, (req: Request) => Promise<Response>> = {
   "/api/demo/insolvency": insolvency,
   "/api/demo/reset": reset,
   "/api/demo/attempt": attempt,
+  "/api/demo/advance": advance,
 };
 
 let dir: string;
@@ -162,6 +164,70 @@ describe("the recorded demo, end to end", () => {
     await expect(
       call("/api/demo/attempt", { saleId: sale.id, kind: "rent" }),
     ).rejects.toThrow(/400 Nothing in trust/);
+  });
+
+  it("T after payment one: Ines is paid on her deadline, then in full", async () => {
+    let { s } = await press(await call("/api/demo/reset"), 3);
+    expect(stepFor(s).advance).toBeDefined();
+    s = await call(stepFor(s).advance!.path, stepFor(s).advance!.body);
+    const step = stepFor(s);
+    expect(step.title).toMatch(/^Day \+61: Ines paid on her deadline/);
+    expect(step.canFail).toBe(false); // the $8,000 insolvency take needs day 0
+    expect(step.advance).toBeUndefined(); // one jump only
+    const inesPaid = () =>
+      s.payouts
+        .filter((p) => p.artistId === "art_ines")
+        .reduce((a, p) => a + p.amountCents, 0);
+    expect(inesPaid()).toBe(400_000);
+    expect(s.payouts.find((p) => p.artistId === "art_ines")!.reason).toBe(
+      "deadline",
+    );
+    // Theo's 14-day seeded share falls due inside the jump as well.
+    expect(
+      s.payouts.some(
+        (p) => p.artistId === "art_theo" && p.reason === "deadline",
+      ),
+    ).toBe(true);
+    balanced(s);
+
+    ({ s } = await press(s));
+    expect(s.sales.find((x) => x.artworkId === "wrk_orchard")!.status).toBe(
+      "paid",
+    );
+    expect(inesPaid()).toBe(1_200_000);
+    expect(stepFor(s).caption).toMatch(
+      /already been paid \$4,000\.00 on her deadline/,
+    );
+    balanced(s);
+
+    // Payouts are stamped on the demo clock, in order.
+    const stamps = s.payouts.slice(1).map((p) => p.paidAt);
+    expect([...stamps].sort()).toEqual(stamps);
+
+    // Reset puts the clock back.
+    s = await call("/api/demo/reset");
+    expect(s.clockOffsetMs).toBe(0);
+    expect(stepFor(s).index).toBe(0);
+  });
+
+  it("cancel after T: the buyer gets all $8,000 back, Ines keeps her $4,000", async () => {
+    let { s } = await press(await call("/api/demo/reset"), 3);
+    s = await call("/api/demo/advance", { days: 61 });
+    const sale = s.sales.filter((x) => x.artworkId === "wrk_orchard").at(-1)!;
+    s = await call("/api/demo/cancel", { saleId: sale.id });
+    const r = s.refunds.at(-1)!;
+    expect(
+      r.fromTrustCents + r.fromOperatingCents + r.coveredByGalleryCents,
+    ).toBe(800_000);
+    expect(r.coveredByGalleryCents).toBe(400_000);
+    balanced(s);
+  });
+
+  it("the demo clock refuses silly jumps", async () => {
+    await call("/api/demo/reset");
+    for (const days of [0, -3, 1.5, 121]) {
+      await expect(call("/api/demo/advance", { days })).rejects.toThrow(/400/);
+    }
   });
 
   it("buyer cancels after payment one: refunded from trust, books balance", async () => {

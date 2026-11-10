@@ -8,7 +8,7 @@ Target length: 2:30. Hard cap 3:00.
 2. Press `R` to reset. You should see the title card with the Stephen Friedman quote.
 3. Browser zoom 125%, window 1440 x 900 or larger, hide bookmarks bar, turn on Do Not Disturb.
 4. Record at 1080p with clicks shown (QuickTime or Screen Studio).
-5. Drive everything with the keyboard: `→` next step, `G` gallery tries to spend trust, `B` gallery goes under, `C` buyer cancels, `R` reset.
+5. Drive everything with the keyboard: `→` next step, `G` gallery tries to spend trust, `T` jump the demo clock 61 days, `B` gallery goes under, `C` buyer cancels, `R` reset.
 6. Record the voice separately if the room is loud, then lay it over. Add captions; judges often watch muted.
 
 ## Script
@@ -54,6 +54,14 @@ Optional, about 10 seconds. Press `G` here, before the final wire:
 `→` Final wire:
 
 > Last payment. The sale is complete, so Rescrow pays Ines out of the trust the same day, with a statement. Her agreement gave the gallery sixty days. She got paid the day the buyer finished paying.
+
+### Optional separate take: the deadline (press `R`, `→` three times, then `T`)
+
+Record this as its own clip if there is time; it doesn't mix with the insolvency take (the `B` button hides once the clock has moved).
+
+> Buyers don't always finish paying. Sixty-one days later this one still owes two payments. Ines's agreement says each share is due within sixty days of the payment that funded it, so Rescrow pays her four thousand dollars out of trust on the deadline anyway. Theo's fourteen-day share on another sale goes out on its own deadline too.
+
+`R` puts the demo clock back to today.
 
 ### 1:45 to 2:05, the gallery goes under (second take: `R`, `→` until payment 2 lands, then `B`)
 

@@ -32,6 +32,44 @@ export const systemClock: Clock = {
   id: (prefix) => `${prefix}_${crypto.randomUUID().slice(0, 8)}`,
 };
 
+/**
+ * The clock a snapshot runs on: the wall clock plus its demo offset. Every
+ * route builds its clock with this inside mutate(), so after the demo clock
+ * jumps ahead, payouts and the insolvency that follows are stamped in order.
+ */
+export function clockFor(s: Pick<Snapshot, "clockOffsetMs">): Clock {
+  const offset = s.clockOffsetMs ?? 0;
+  return {
+    now: () => new Date(Date.now() + offset).toISOString(),
+    id: systemClock.id,
+  };
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Demo: move this snapshot's clock forward by whole days, then pay out every
+ * share whose agreement deadline has now passed (the same releaseDueHolds the
+ * state route runs on every poll). Nothing else moves.
+ */
+export function advanceClock(
+  input: Snapshot,
+  args: { days: number },
+  wall: Clock = systemClock,
+): Snapshot {
+  if (!Number.isInteger(args.days) || args.days < 1 || args.days > 120) {
+    throw new EscrowError("The demo clock moves 1 to 120 whole days at a time");
+  }
+  const s = structuredClone(input);
+  s.clockOffsetMs = (s.clockOffsetMs ?? 0) + args.days * DAY_MS;
+  const offset = s.clockOffsetMs;
+  const clock: Clock = {
+    now: () => new Date(Date.parse(wall.now()) + offset).toISOString(),
+    id: wall.id,
+  };
+  return releaseDueHolds(s, clock);
+}
+
 function find<T extends { id: Id }>(items: T[], id: Id, label: string): T {
   const item = items.find((x) => x.id === id);
   if (!item) throw new EscrowError(`${label} ${id} not found`);

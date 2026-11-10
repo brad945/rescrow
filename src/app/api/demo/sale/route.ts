@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, parseBody } from "@/lib/api";
-import { createSale } from "@/lib/escrow/engine";
+import { clockFor, createSale } from "@/lib/escrow/engine";
 import { mutate } from "@/lib/store";
 import type { CreateSaleRequest } from "@/types";
 
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   try {
     const body = await parseBody(req, schema);
     const { snapshot } = await mutate((current) => {
-      const out = createSale(current, body);
+      const out = createSale(current, body, clockFor(current));
       return { snapshot: out.snapshot, result: out.sale };
     });
     return NextResponse.json(snapshot);

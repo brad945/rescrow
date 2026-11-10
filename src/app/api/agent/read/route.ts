@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { readAgreement, type StreamHandlers } from "@/lib/agent";
 import { errorResponse, parseBody } from "@/lib/api";
-import { applyTerms, EscrowError } from "@/lib/escrow/engine";
+import { applyTerms, clockFor, EscrowError } from "@/lib/escrow/engine";
 import { ndjsonStream } from "@/lib/ndjson";
 import { load, mutate } from "@/lib/store";
 import type { ReadAgreementRequest } from "@/types";
@@ -25,12 +25,16 @@ async function run(
   // The model call can take a while; apply its result to the latest state,
   // not the copy loaded before the call, so nothing done meanwhile is lost.
   const { snapshot } = await mutate((current) => ({
-    snapshot: applyTerms(current, {
-      agreementId: agreement.id,
-      terms: result.terms,
-      source: result.source,
-      flag: result.fallbackReason,
-    }),
+    snapshot: applyTerms(
+      current,
+      {
+        agreementId: agreement.id,
+        terms: result.terms,
+        source: result.source,
+        flag: result.fallbackReason,
+      },
+      clockFor(current),
+    ),
     result: null,
   }));
   return { snapshot, result };

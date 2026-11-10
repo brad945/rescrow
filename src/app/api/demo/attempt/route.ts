@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, parseBody } from "@/lib/api";
-import { attemptTrustMove } from "@/lib/escrow/engine";
+import { attemptTrustMove, clockFor } from "@/lib/escrow/engine";
 import { mutate } from "@/lib/store";
 import type { TrustMoveRequest } from "@/types";
 
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   try {
     const body = await parseBody(req, schema);
     const { snapshot } = await mutate((current) => ({
-      snapshot: attemptTrustMove(current, body).snapshot,
+      snapshot: attemptTrustMove(current, body, clockFor(current)).snapshot,
       result: null,
     }));
     return NextResponse.json(snapshot);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, parseBody } from "@/lib/api";
-import { declareInsolvency } from "@/lib/escrow/engine";
+import { clockFor, declareInsolvency } from "@/lib/escrow/engine";
 import { mutate } from "@/lib/store";
 import type { InsolvencyRequest } from "@/types";
 
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   try {
     const body = await parseBody(req, schema);
     const { snapshot } = await mutate((current) => ({
-      snapshot: declareInsolvency(current, body).snapshot,
+      snapshot: declareInsolvency(current, body, clockFor(current)).snapshot,
       result: null,
     }));
     return NextResponse.json(snapshot);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, parseBody } from "@/lib/api";
-import { receivePayment } from "@/lib/escrow/engine";
+import { clockFor, receivePayment } from "@/lib/escrow/engine";
 import { mutate } from "@/lib/store";
 import type { ReceivePaymentRequest } from "@/types";
 
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   try {
     const body = await parseBody(req, schema);
     const { snapshot } = await mutate((current) => {
-      const out = receivePayment(current, body);
+      const out = receivePayment(current, body, clockFor(current));
       return { snapshot: out.snapshot, result: out.hold };
     });
     return NextResponse.json(snapshot);

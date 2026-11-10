@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { releaseDueHolds } from "@/lib/escrow/engine";
+import { clockFor, releaseDueHolds } from "@/lib/escrow/engine";
 import { load, mutate } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -10,11 +10,11 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const current = load();
-  if (releaseDueHolds(current) === current) {
+  if (releaseDueHolds(current, clockFor(current)) === current) {
     return NextResponse.json(current);
   }
   const { snapshot } = await mutate((latest) => ({
-    snapshot: releaseDueHolds(latest),
+    snapshot: releaseDueHolds(latest, clockFor(latest)),
     result: null,
   }));
   return NextResponse.json(snapshot);

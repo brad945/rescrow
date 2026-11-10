@@ -88,7 +88,23 @@ export const FIXTURE_TERMS: Record<string, AgreementTerms> = {
   },
 };
 
-export function createSeed(): Snapshot {
+/**
+ * The moment the seed's history is written relative to. createSeed() with no
+ * argument returns exactly the same snapshot every time; the reset route and
+ * the store pass the wall clock, so the seeded history (and Theo's payout
+ * deadline) is always the same distance in the past (and future) of now.
+ */
+export const SEED_NOW = "2026-11-09T16:41:12.000Z";
+
+/**
+ * Bumped whenever the seed changes shape or content, so a data file written by
+ * an older build is reseeded instead of loaded.
+ */
+export const SEED_VERSION = 2;
+
+export function createSeed(now: string = SEED_NOW): Snapshot {
+  const shift = Date.parse(now) - Date.parse(SEED_NOW);
+  const t = (iso: string) => new Date(Date.parse(iso) + shift).toISOString();
   const records: Omit<Snapshot, "journal" | "refunds"> = {
     galleries: [
       {
@@ -230,7 +246,7 @@ export function createSeed(): Snapshot {
         installments: 1,
         artistShareBps: 5000,
         status: "paid",
-        createdAt: "2026-10-14T15:20:44.000Z",
+        createdAt: t("2026-10-14T15:20:44.000Z"),
       },
       {
         id: "sale_lamps",
@@ -242,7 +258,7 @@ export function createSeed(): Snapshot {
         installments: 3,
         artistShareBps: 6000,
         status: "open",
-        createdAt: "2026-10-28T18:05:09.000Z",
+        createdAt: t("2026-10-28T18:05:09.000Z"),
       },
     ],
     payments: [
@@ -252,7 +268,7 @@ export function createSeed(): Snapshot {
         galleryId: "gal_lowline",
         amountCents: 1_800_000,
         method: "wire",
-        receivedAt: "2026-10-16T14:02:37.000Z",
+        receivedAt: t("2026-10-16T14:02:37.000Z"),
       },
       {
         id: "pay_lamps_1",
@@ -260,7 +276,7 @@ export function createSeed(): Snapshot {
         galleryId: "gal_lowline",
         amountCents: 400_000,
         method: "ach",
-        receivedAt: "2026-10-30T16:41:12.000Z",
+        receivedAt: t("2026-10-30T16:41:12.000Z"),
       },
     ],
     holds: [
@@ -272,8 +288,8 @@ export function createSeed(): Snapshot {
         galleryId: "gal_lowline",
         amountCents: 900_000,
         status: "paid",
-        lockedAt: "2026-10-16T14:02:37.000Z",
-        releasedAt: "2026-10-16T14:02:41.000Z",
+        lockedAt: t("2026-10-16T14:02:37.000Z"),
+        releasedAt: t("2026-10-16T14:02:41.000Z"),
       },
       {
         id: "hold_lamps_1",
@@ -283,8 +299,10 @@ export function createSeed(): Snapshot {
         galleryId: "gal_lowline",
         amountCents: 240_000,
         status: "locked",
-        lockedAt: "2026-10-30T16:41:12.000Z",
+        lockedAt: t("2026-10-30T16:41:12.000Z"),
         releasedAt: null,
+        // Theo's agreement: paid within 14 days of cleared funds.
+        dueBy: t("2026-11-13T16:41:12.000Z"),
       },
     ],
     payouts: [
@@ -294,14 +312,14 @@ export function createSeed(): Snapshot {
         galleryId: "gal_lowline",
         amountCents: 900_000,
         holdIds: ["hold_tidewater_1"],
-        paidAt: "2026-10-16T14:02:41.000Z",
+        paidAt: t("2026-10-16T14:02:41.000Z"),
       },
     ],
     activity: [
       {
         id: "act_seed_4",
         kind: "hold_locked",
-        at: "2026-10-30T16:41:12.000Z",
+        at: t("2026-10-30T16:41:12.000Z"),
         galleryId: "gal_lowline",
         artistId: "art_theo",
         message:
@@ -311,7 +329,7 @@ export function createSeed(): Snapshot {
       {
         id: "act_seed_3",
         kind: "payment_received",
-        at: "2026-10-30T16:41:12.000Z",
+        at: t("2026-10-30T16:41:12.000Z"),
         galleryId: "gal_lowline",
         artistId: "art_theo",
         message: "ACH received from Hollis Family Trust, $4,000.00",
@@ -320,7 +338,7 @@ export function createSeed(): Snapshot {
       {
         id: "act_seed_2",
         kind: "payout_sent",
-        at: "2026-10-16T14:02:41.000Z",
+        at: t("2026-10-16T14:02:41.000Z"),
         galleryId: "gal_lowline",
         artistId: "art_mara",
         message: "Paid Mara Okafor $9,000.00 for Tidewater, Evening",
@@ -329,7 +347,7 @@ export function createSeed(): Snapshot {
       {
         id: "act_seed_1",
         kind: "payment_received",
-        at: "2026-10-16T14:02:37.000Z",
+        at: t("2026-10-16T14:02:37.000Z"),
         galleryId: "gal_lowline",
         artistId: "art_mara",
         message: "Wire received from R. Castellanos, $18,000.00",
@@ -337,5 +355,11 @@ export function createSeed(): Snapshot {
       },
     ],
   };
-  return { ...records, journal: openingJournal(records), refunds: [] };
+  return {
+    ...records,
+    journal: openingJournal(records),
+    refunds: [],
+    seedVersion: SEED_VERSION,
+    clockOffsetMs: 0,
+  };
 }

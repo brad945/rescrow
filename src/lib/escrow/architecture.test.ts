@@ -131,3 +131,35 @@ describe("architecture: every write that moves money is accounted for", () => {
     expect(holdStatus).toHaveLength(1);
   });
 });
+
+describe("architecture: routes run on the demo clock", () => {
+  const MUTATORS =
+    /\b(createSale|receivePayment|cancelSale|declareInsolvency|attemptTrustMove|releaseDueHolds|applyTerms)\(/;
+
+  it("every engine call in a route passes clockFor(...)", () => {
+    const bad: string[] = [];
+    for (const file of files(path.join(SRC, "app/api"))) {
+      const text = fs.readFileSync(file, "utf8");
+      // Join each call to its closing paren so multi-line calls are seen whole.
+      const calls = text.match(
+        /\b(?:createSale|receivePayment|cancelSale|declareInsolvency|attemptTrustMove|releaseDueHolds|applyTerms)\([\s\S]*?\)\s*[,;.)]/g,
+      );
+      for (const c of calls ?? []) {
+        if (MUTATORS.test(c) && !c.includes("clockFor(")) {
+          bad.push(`${path.relative(SRC, file)}: ${c.split("\n")[0]}`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it("outside tests, createSeed() is always given the time", () => {
+    const bad: string[] = [];
+    for (const file of files(SRC)) {
+      const rel = path.relative(SRC, file);
+      if (rel === "lib/seed.ts") continue;
+      if (/\bcreateSeed\(\)/.test(fs.readFileSync(file, "utf8"))) bad.push(rel);
+    }
+    expect(bad).toEqual([]);
+  });
+});

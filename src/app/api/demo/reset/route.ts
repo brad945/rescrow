@@ -6,7 +6,7 @@ import { mutate } from "@/lib/store";
 export async function POST() {
   try {
     const { snapshot } = await mutate(() => ({
-      snapshot: createSeed(),
+      snapshot: createSeed(new Date().toISOString()),
       result: null,
     }));
     return NextResponse.json(snapshot);

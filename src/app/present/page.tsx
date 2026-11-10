@@ -2,8 +2,15 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import type { Snapshot } from "@/types";
-import { ARTIST, AGREEMENT, GALLERY, WORK, stepFor } from "@/components/story";
+import type { EscrowHold, Snapshot } from "@/types";
+import {
+  ARTIST,
+  AGREEMENT,
+  GALLERY,
+  WORK,
+  demoDays,
+  stepFor,
+} from "@/components/story";
 import {
   AgentPanel,
   idleRun,
@@ -63,6 +70,10 @@ export default function PresentPage() {
     if (step?.canCancel && sale && !busy)
       void act("/api/demo/cancel", { saleId: sale.id });
   }, [snapshot, step, busy, act]);
+  const advance = useCallback(() => {
+    if (step?.advance && !busy) void act(step.advance.path, step.advance.body);
+  }, [step, busy, act]);
+
   const attempt = useCallback(() => {
     if (step?.attempt && !busy) void act(step.attempt.path, step.attempt.body);
   }, [step, busy, act]);
@@ -86,11 +97,13 @@ export default function PresentPage() {
         fail();
       } else if (e.key === "g" || e.key === "G") {
         attempt();
+      } else if (e.key === "t" || e.key === "T") {
+        advance();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, reset, cancel, fail, attempt]);
+  }, [next, reset, cancel, fail, attempt, advance]);
 
   if (!snapshot || !step) {
     return (
@@ -117,6 +130,11 @@ export default function PresentPage() {
           ))}
         </ol>
         <div className="ml-auto flex items-center gap-2 text-xs text-muted">
+          {demoDays(snapshot) > 0 && (
+            <span className="num rounded border border-ink/20 bg-card px-2 py-1 text-ink">
+              Demo clock +{demoDays(snapshot)} days
+            </span>
+          )}
           <Link href="/gallery" className="hover:text-ink">
             Exit
           </Link>
@@ -152,6 +170,17 @@ export default function PresentPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {step.advance && (
+                    <button
+                      type="button"
+                      onClick={advance}
+                      disabled={busy}
+                      className="rounded border border-line bg-card px-3 py-2 text-sm text-muted hover:text-ink disabled:opacity-40"
+                    >
+                      {step.advance.label}{" "}
+                      <kbd className="num text-faint">T</kbd>
+                    </button>
+                  )}
                   {step.attempt && (
                     <button
                       type="button"
@@ -276,9 +305,13 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
     .filter((h) => h.artistId === ARTIST && h.status === "locked" && h.dueBy)
     .map((h) => h.dueBy!)
     .sort()[0];
+  const locked = snapshot.holds
+    .filter((h) => h.artistId === ARTIST && h.status === "locked" && h.dueBy)
+    .sort((a, b) => a.lockedAt.localeCompare(b.lockedAt));
   const showPayout =
     payout &&
     (sale?.status === "paid" ||
+      payout.reason === "deadline" ||
       (failed &&
         !!gallery.insolventAt &&
         payout.paidAt >= gallery.insolventAt));
@@ -310,6 +343,12 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
                   Paid to you by {shortDate(dueBy)} at the latest, per your
                   agreement
                 </p>
+              )}
+              {locked.length > 0 && (
+                <DeadlineBars
+                  holds={locked}
+                  offsetMs={snapshot.clockOffsetMs ?? 0}
+                />
               )}
             </div>
 
@@ -396,6 +435,48 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
         </div>
       </div>
     </aside>
+  );
+}
+
+/** One bar per locked share: how far it is from locked to its payout deadline. */
+function DeadlineBars({
+  holds,
+  offsetMs,
+}: {
+  holds: EscrowHold[];
+  offsetMs: number;
+}) {
+  const [wall, setWall] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setWall(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const now = wall + offsetMs;
+  return (
+    <ul className="mt-2 space-y-1.5">
+      {holds.map((h) => {
+        const start = Date.parse(h.lockedAt);
+        const end = Date.parse(h.dueBy!);
+        const done = Math.min(1, Math.max(0, (now - start) / (end - start)));
+        const left = Math.max(0, Math.ceil((end - now) / 86_400_000));
+        return (
+          <li key={h.id} className="text-[10px] text-white/80">
+            <div className="num flex justify-between">
+              <Money cents={h.amountCents} />
+              <span>
+                {left === 0 ? "due today" : `${left} days to deadline`}
+              </span>
+            </div>
+            <div className="mt-0.5 h-1 rounded-full bg-white/20">
+              <div
+                className="h-1 rounded-full bg-white"
+                style={{ width: `${Math.round(done * 100)}%` }}
+              />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

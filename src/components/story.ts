@@ -20,7 +20,17 @@ export type Step = {
   canFail?: boolean;
   /** The gallery tries to spend the story sale's trust money (key G). */
   attempt?: { path: string; body: unknown };
+  /** Jump the demo clock past Ines's payout deadline (key T). */
+  advance?: { label: string; path: string; body: unknown };
 };
+
+/** Days the demo clock jumps: one past Ines's 60-day payout window. */
+export const JUMP_DAYS = 61;
+
+/** Whole days the demo clock is ahead of the wall clock. */
+export function demoDays(s: Snapshot): number {
+  return Math.round((s.clockOffsetMs ?? 0) / 86_400_000);
+}
 
 export const GALLERY = "gal_lowline";
 
@@ -97,11 +107,24 @@ export function stepFor(s: Snapshot): Step {
       },
     };
   }
+  // Shares of this sale already paid to Ines on their agreement deadline.
+  const onDeadline = s.payouts
+    .filter(
+      (p) =>
+        p.artistId === ARTIST &&
+        p.reason === "deadline" &&
+        s.holds.some((h) => p.holdIds.includes(h.id) && h.saleId === sale.id),
+    )
+    .reduce((t, p) => t + p.amountCents, 0);
+
   if (sale.status === "paid") {
     return {
       index: 5,
       title: "Paid in full, artist paid today",
-      caption: `The last payment landed and Rescrow released the trust the same day. Ines has her money and a statement. Her agreement allowed ${agreement.terms.payoutDays} days; she was paid the day the buyer finished paying.`,
+      caption:
+        onDeadline > 0
+          ? `The last payment landed and Rescrow released the rest of the trust the same day. Ines had already been paid ${formatCents(onDeadline)} on her deadline while the buyer was still paying; now she has all of it, with a statement for each.`
+          : `The last payment landed and Rescrow released the trust the same day. Ines has her money and a statement. Her agreement allowed ${agreement.terms.payoutDays} days; she was paid the day the buyer finished paying.`,
     };
   }
   const n = payments.length;
@@ -115,10 +138,21 @@ export function stepFor(s: Snapshot): Step {
     "The first wire arrived. Half went straight to the artist trust account, the other half to operating. The gallery can't spend Ines's half.",
     "Second payment, by ACH. Same split, same second it lands. Ines can see every dollar held for her on her phone.",
   ];
+  const days = demoDays(s);
+  const theo = s.payouts.some(
+    (p) => p.artistId === "art_theo" && p.reason === "deadline",
+  );
+  const late = days > 0 && onDeadline > 0;
   return {
     index: 2 + n,
-    title: n === 0 ? "Sale agreed" : `Payment ${n} of 3 received`,
-    caption: captions[n] ?? "",
+    title: late
+      ? `Day +${days}: Ines paid on her deadline`
+      : n === 0
+        ? "Sale agreed"
+        : `Payment ${n} of 3 received`,
+    caption: late
+      ? `${days} days later the buyer still owes ${3 - n} of 3 payments. Ines's agreement says each share is due within ${agreement.terms.payoutDays} days of the payment that funded it, so Rescrow paid her ${formatCents(onDeadline)} out of trust on the deadline anyway.${theo ? " Theo's 14-day share on another sale went out on its own deadline too." : ""} The rest stays locked until it is due.`
+      : (captions[n] ?? ""),
     next: {
       label:
         n === 2
@@ -128,9 +162,20 @@ export function stepFor(s: Snapshot): Step {
       body: { saleId: sale.id, method: METHODS[n] ?? "wire" },
     },
     canCancel: n > 0,
-    canFail: n > 0,
+    // After a clock jump some of Ines's trust is already paid out, so the
+    // insolvency take (narrated as $8,000 to Ines) is only offered at day 0.
+    canFail: n > 0 && days === 0,
+    advance:
+      n > 0 && days === 0
+        ? {
+            label: `${JUMP_DAYS} days pass`,
+            path: "/api/demo/advance",
+            body: { days: JUMP_DAYS },
+          }
+        : undefined,
     attempt:
-      n > 0
+      n > 0 &&
+      s.holds.some((h) => h.saleId === sale.id && h.status === "locked")
         ? {
             path: "/api/demo/attempt",
             body: { saleId: sale.id, kind: "rent" },

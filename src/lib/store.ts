@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Snapshot } from "@/types";
-import { createSeed } from "@/lib/seed";
+import { createSeed, SEED_VERSION } from "@/lib/seed";
 
 // Demo persistence: one JSON file. Writes go to a temp file and are renamed
 // into place, so a crash mid write never leaves a half written file.
@@ -33,6 +33,8 @@ function isSnapshot(value: unknown): value is Snapshot {
   return (
     KEYS.every((k) => Array.isArray(record[k])) &&
     (record.galleries as unknown[]).length > 0 &&
+    // Files from an older seed are reseeded rather than loaded.
+    record.seedVersion === SEED_VERSION &&
     // Files saved before sales carried their own split are treated as stale.
     (record.sales as { artistShareBps?: unknown }[]).every(
       (sale) => typeof sale.artistShareBps === "number",
@@ -62,7 +64,7 @@ export function save(snapshot: Snapshot): void {
 }
 
 export function reset(): Snapshot {
-  const seed = createSeed();
+  const seed = createSeed(new Date().toISOString());
   save(seed);
   return seed;
 }

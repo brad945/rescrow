@@ -113,11 +113,31 @@ describe("payout deadline from the agreement", () => {
     expectBalanced(after);
   });
 
-  it("leaves holds alone before their deadline and returns the same state", () => {
+  it("leaves holds alone before their deadline", () => {
+    const clock = clockAt("2026-11-10T15:00:00.000Z");
+    const { s, saleId } = midSale(clock);
+    clock.set("2027-01-09T14:59:59.000Z");
+    // One second before Ines's 60-day deadline. (Theo's 14-day seeded share
+    // is long due by now and pays; that is the next case.)
+    const after = releaseDueHolds(s, clock);
+    const story = after.holds.filter((h) => h.saleId === saleId);
+    expect(story.map((h) => h.status)).toEqual(["locked", "locked"]);
+  });
+
+  it("returns the very same state when nothing is due", () => {
     const clock = clockAt("2026-11-10T15:00:00.000Z");
     const { s } = midSale(clock);
-    clock.set("2027-01-09T14:59:59.000Z");
+    clock.set("2026-11-12T16:41:12.000Z"); // seed time + 3 days: Theo not due yet
     expect(releaseDueHolds(s, clock)).toBe(s);
+  });
+
+  it("pays Theo's seeded share on its own 14-day deadline", () => {
+    const clock = clockAt("2026-11-13T16:41:12.000Z");
+    const after = releaseDueHolds(createSeed(), clock);
+    const theo = after.payouts.filter((p) => p.artistId === "art_theo");
+    expect(theo).toHaveLength(1);
+    expect(theo[0]).toMatchObject({ amountCents: 240_000, reason: "deadline" });
+    expectBalanced(after);
   });
 });
 
