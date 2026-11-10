@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 const SRC = path.resolve(__dirname, "../..");
 
 const WRITE =
-  /(\.status\s*=(?!=)|payouts\.push\(|operatingBalanceCents\s*[-+]?=(?!=)|\.claimedByCreditorsCents\s*=(?!=)|holds\.push\(|\.amountCents\s*[-+]?=(?!=))/;
+  /(\.status\s*=(?!=)|payouts\.push\(|operatingBalanceCents\s*[-+]?=(?!=)|\.claimedByCreditorsCents\s*=(?!=)|holds\.push\(|journal\.push\(|\.amountCents\s*[-+]?=(?!=))/;
 
 function files(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -46,7 +46,9 @@ function writes(): string[] {
 // status. Keep it short.
 const MANIFEST = [
   // The only exit from trust: artist (paid) or buyer (refunded), nothing else.
-  'lib/escrow/engine.ts releaseTrust: live.status = to === "artist" ? "paid" : "refunded";',
+  'lib/escrow/engine.ts releaseTrust: h.status = to === "artist" ? "paid" : "refunded";',
+  // The only append to the journal, after the account rules pass.
+  "lib/escrow/journal.ts apply: s.journal.push(e);",
   // A payout is recorded only for holds releaseTrust just released.
   "lib/escrow/engine.ts payOut: s.payouts.push({",
   // Money in: the gallery's part of a payment, the artist's part into a new hold.
@@ -66,6 +68,49 @@ const MANIFEST = [
   'lib/escrow/engine.ts cancelSale: artwork.status = "consigned";',
 ];
 
+/** Lines that import or call the journal's posting functions, by file and function. */
+function journalUses(): string[] {
+  const out: string[] = [];
+  for (const file of files(SRC)) {
+    const rel = path.relative(SRC, file);
+    if (rel === "lib/escrow/journal.ts") continue;
+    let fn = "(top level)";
+    const text = fs.readFileSync(file, "utf8");
+    if (/from "(\.\/|@\/lib\/escrow\/)journal"/.test(text)) {
+      const imported = text.match(
+        /import \{([^}]*)\} from "(?:\.\/|@\/lib\/escrow\/)journal"/,
+      );
+      for (const name of (imported?.[1] ?? "")
+        .split(",")
+        .map((x) => x.trim())) {
+        if (/^(post|postTrustRelease|openingJournal)$/.test(name)) {
+          out.push(`${rel} imports ${name}`);
+        }
+      }
+    }
+    text.split("\n").forEach((line) => {
+      const m = line.match(/^(?:export )?(?:async )?function (\w+)/);
+      if (m) fn = m[1];
+      if (/\bpostTrustRelease\(/.test(line))
+        out.push(`${rel} ${fn} calls postTrustRelease`);
+    });
+  }
+  return out.sort();
+}
+
+describe("architecture: only the engine posts to the journal", () => {
+  it("post and postTrustRelease are imported by engine.ts only, openingJournal by seed.ts only", () => {
+    expect(journalUses()).toEqual(
+      [
+        "lib/escrow/engine.ts imports post",
+        "lib/escrow/engine.ts imports postTrustRelease",
+        "lib/escrow/engine.ts releaseTrust calls postTrustRelease",
+        "lib/seed.ts imports openingJournal",
+      ].sort(),
+    );
+  });
+});
+
 describe("architecture: every write that moves money is accounted for", () => {
   it("matches the reviewed manifest exactly", () => {
     expect(writes()).toEqual([...MANIFEST].sort());
@@ -78,7 +123,7 @@ describe("architecture: every write that moves money is accounted for", () => {
 
   it("hold status changes happen in releaseTrust and nowhere else", () => {
     const holdStatus = writes().filter((w) =>
-      /live\.status|hold\.status|h\.status/.test(w),
+      /live\.status|hold\.status|\bh\.status/.test(w),
     );
     expect(holdStatus.every((w) => w.includes(" releaseTrust: "))).toBe(true);
     expect(holdStatus).toHaveLength(1);

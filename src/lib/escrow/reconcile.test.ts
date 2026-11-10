@@ -115,6 +115,40 @@ const PLANTS: [string, (s: Snapshot) => void, RegExp][] = [
     /Operating balance is negative/,
   ],
   [
+    "a journal entry is edited after posting",
+    (s) => void (s.journal.at(-1)!.postings[0].cents -= 1),
+    /Journal entry .* sums to -1, not zero/,
+  ],
+  [
+    "a journal entry is deleted",
+    (s) => void s.journal.pop(),
+    /Journal .* but the records say/,
+  ],
+  [
+    "a balance is edited but the journal isn't",
+    (s) => {
+      const g = gallery(s);
+      g.operatingBalanceCents += 500;
+      g.openingBalanceCents = (g.openingBalanceCents ?? 0) + 500;
+    },
+    /Journal operating is .* but the records say/,
+  ],
+  [
+    "trust for one artist is moved to another in the journal",
+    (s) =>
+      void s.journal.push({
+        id: "je_plant",
+        at: "2026-11-10T15:00:00.000Z",
+        code: "TRANSFER",
+        postings: [
+          { account: "trust:gal_lowline:art_ines", cents: -100 },
+          { account: "trust:gal_lowline:art_theo", cents: 100 },
+        ],
+        ref: null,
+      }),
+    /Journal trust for art_ines/,
+  ],
+  [
     "the opening balance is missing",
     (s) => void delete gallery(s).openingBalanceCents,
     /No opening balance on record/,

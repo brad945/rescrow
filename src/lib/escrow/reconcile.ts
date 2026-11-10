@@ -1,5 +1,6 @@
 import type { Cents, Id, Reconciliation, Snapshot } from "@/types";
 import { formatCents } from "@/lib/money";
+import { acct, balancesOf } from "./journal";
 
 /**
  * Proves every cent that reached the gallery is in exactly one place:
@@ -109,6 +110,17 @@ export function reconcile(s: Snapshot, galleryId: Id): Reconciliation {
     );
   }
 
+  breaks.push(
+    ...journalBreaks(s, galleryId, {
+      openingCents: gallery.openingBalanceCents,
+      operatingCents,
+      receivedCents,
+      paidToArtistsCents,
+      refundedToBuyersCents,
+      claimedByCreditorsCents,
+    }),
+  );
+
   return {
     balanced: breaks.length === 0,
     openingCents,
@@ -119,5 +131,75 @@ export function reconcile(s: Snapshot, galleryId: Id): Reconciliation {
     refundedToBuyersCents,
     claimedByCreditorsCents,
     breaks,
+    journalEntries: s.journal.length,
   };
+}
+
+/**
+ * The journal is a second, independent record of every move. Fold it and
+ * check each balance against the engine's records, to the cent.
+ */
+function journalBreaks(
+  s: Snapshot,
+  galleryId: Id,
+  r: {
+    openingCents: Cents | undefined;
+    operatingCents: Cents;
+    receivedCents: Cents;
+    paidToArtistsCents: Cents;
+    refundedToBuyersCents: Cents;
+    claimedByCreditorsCents: Cents;
+  },
+): string[] {
+  const out: string[] = [];
+  for (const e of s.journal) {
+    const sum = e.postings.reduce((t, p) => t + p.cents, 0);
+    if (sum !== 0) out.push(`Journal entry ${e.id} sums to ${sum}, not zero`);
+  }
+  const bal = balancesOf(s.journal);
+  const sumKind = (kind: string) =>
+    [...bal]
+      .filter(([a]) => a.startsWith(`${kind}:${galleryId}:`))
+      .reduce((t, [, c]) => t + c, 0);
+  const check = (what: string, journal: Cents, records: Cents) => {
+    if (journal !== records) {
+      out.push(
+        `Journal ${what} is ${formatCents(journal)} but the records say ${formatCents(records)}`,
+      );
+    }
+  };
+  check("operating", bal.get(acct.operating(galleryId)) ?? 0, r.operatingCents);
+  if (r.openingCents !== undefined) {
+    check("opening", -(bal.get(acct.equity(galleryId)) ?? 0), r.openingCents);
+  }
+  check("paid to artists", sumKind("artist"), r.paidToArtistsCents);
+  check(
+    "creditors",
+    bal.get(acct.creditors(galleryId)) ?? 0,
+    r.claimedByCreditorsCents,
+  );
+  check(
+    "received from buyers, less refunds",
+    -sumKind("buyer"),
+    r.receivedCents - r.refundedToBuyersCents,
+  );
+  // Per artist: the trust account equals that artist's locked holds here.
+  const artists = new Set([
+    ...s.holds.filter((h) => h.galleryId === galleryId).map((h) => h.artistId),
+    ...[...bal.keys()]
+      .filter((a) => a.startsWith(`trust:${galleryId}:`))
+      .map((a) => a.split(":")[2]),
+  ]);
+  for (const a of artists) {
+    const locked = s.holds
+      .filter(
+        (h) =>
+          h.galleryId === galleryId &&
+          h.artistId === a &&
+          h.status === "locked",
+      )
+      .reduce((t, h) => t + h.amountCents, 0);
+    check(`trust for ${a}`, bal.get(acct.trust(galleryId, a)) ?? 0, locked);
+  }
+  return out;
 }

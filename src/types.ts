@@ -184,6 +184,44 @@ export interface Snapshot {
   holds: EscrowHold[];
   payouts: Payout[];
   activity: Activity[];
+  /** Double-entry journal kept beside the records above; see lib/escrow/journal.ts. */
+  journal: JournalEntry[];
+}
+
+/**
+ * Journal accounts, all scoped to one gallery:
+ * - `equity:<gallery>`: opening balances
+ * - `operating:<gallery>`: the gallery's own cash
+ * - `trust:<gallery>:<artist>`: money held for one artist
+ * - `artist:<gallery>:<artist>`: paid out to the artist (outside the bank)
+ * - `buyer:<gallery>:<sale>`: the buyer of one sale (negative = paid in)
+ * - `creditors:<gallery>`: taken by creditors in insolvency
+ */
+export type AccountId = string;
+
+export type JournalCode =
+  | "OPENING"
+  | "RECEIPT_SPLIT"
+  | "TRUST_TO_ARTIST"
+  | "TRUST_TO_BUYER"
+  | "OPERATING_TO_BUYER"
+  | "OPERATING_TO_CREDITORS"
+  /** Any other attempted move; the account rules decide if it may post. */
+  | "TRANSFER";
+
+export interface Posting {
+  account: AccountId;
+  /** Change to the account's balance, in cents. Postings in an entry sum to zero. */
+  cents: Cents;
+}
+
+export interface JournalEntry {
+  id: Id;
+  at: Timestamp;
+  code: JournalCode;
+  postings: Posting[];
+  /** The record this entry mirrors (payment, payout, sale), if any. */
+  ref: Id | null;
 }
 
 // Request bodies for the demo routes.
@@ -237,4 +275,6 @@ export interface Reconciliation {
   claimedByCreditorsCents: Cents;
   /** Plain-language reasons the books don't balance; empty when they do. */
   breaks: string[];
+  /** Number of journal entries checked against the records above. */
+  journalEntries?: number;
 }

@@ -1,3 +1,4 @@
+import { openingJournal } from "@/lib/escrow/journal";
 import type { AgreementTerms, Snapshot } from "@/types";
 
 // Fictional gallery, artists and works for the demo.
@@ -88,7 +89,7 @@ export const FIXTURE_TERMS: Record<string, AgreementTerms> = {
 };
 
 export function createSeed(): Snapshot {
-  return {
+  const records: Omit<Snapshot, "journal"> = {
     galleries: [
       {
         id: "gal_lowline",
@@ -336,4 +337,5 @@ export function createSeed(): Snapshot {
       },
     ],
   };
+  return { ...records, journal: openingJournal(records) };
 }

@@ -18,7 +18,9 @@ import { formatCents, methodLabel, shareOf } from "@/lib/money";
 // Pure escrow rules. Each function returns a new snapshot and never mutates
 // its input, so routes can load, apply, and save.
 
-export class EscrowError extends Error {}
+import { EscrowError, LedgerRejected } from "./errors";
+import { acct, entry, post, postTrustRelease } from "./journal";
+export { EscrowError, LedgerRejected } from "./errors";
 
 export interface Clock {
   now: () => string;
@@ -103,15 +105,46 @@ export function releaseTrust(
     );
   }
   const at = clock.now();
-  let total = 0;
-  for (const h of holds) {
-    const live = s.holds.find((x) => x.id === h.id);
-    if (!live || live.status !== "locked") {
+  const live = holds.map((h) => {
+    const found = s.holds.find((x) => x.id === h.id);
+    if (!found || found.status !== "locked") {
       throw new EscrowError(`Hold ${h.id} is not in trust`);
     }
-    live.status = to === "artist" ? "paid" : "refunded";
-    live.releasedAt = at;
-    total += live.amountCents;
+    return found;
+  });
+  if (live.length === 0) return 0;
+
+  // One journal entry for the whole release: each trust account pays its own
+  // artist, or back to the buyer of each sale. The journal's account rules
+  // check this independently of the test above.
+  const postings = new Map<string, number>();
+  const add = (account: string, cents: number) =>
+    postings.set(account, (postings.get(account) ?? 0) + cents);
+  for (const h of live) {
+    add(acct.trust(h.galleryId, h.artistId), -h.amountCents);
+    add(
+      to === "artist"
+        ? acct.artist(h.galleryId, h.artistId)
+        : acct.buyer(h.galleryId, h.saleId),
+      h.amountCents,
+    );
+  }
+  postTrustRelease(
+    s,
+    entry(
+      clock.id("je"),
+      at,
+      to === "artist" ? "TRUST_TO_ARTIST" : "TRUST_TO_BUYER",
+      [...postings].map(([account, cents]) => ({ account, cents })),
+      live[0].saleId,
+    ),
+  );
+
+  let total = 0;
+  for (const h of live) {
+    h.status = to === "artist" ? "paid" : "refunded";
+    h.releasedAt = at;
+    total += h.amountCents;
   }
   return total;
 }
@@ -276,6 +309,20 @@ export function receivePayment(
   // Share is computed before the payment is recorded (it rounds on the running total).
   const artistShare = artistShareOfPayment(s, sale, amount);
   s.payments.push(payment);
+  post(
+    s,
+    entry(
+      clock.id("je"),
+      at,
+      "RECEIPT_SPLIT",
+      [
+        { account: acct.buyer(gallery.id, sale.id), cents: -amount },
+        { account: acct.operating(gallery.id), cents: amount - artistShare },
+        { account: acct.trust(gallery.id, artist.id), cents: artistShare },
+      ],
+      payment.id,
+    ),
+  );
   gallery.operatingBalanceCents += amount - artistShare;
 
   const hold: EscrowHold = {
@@ -371,6 +418,19 @@ export function declareInsolvency(
   const s = structuredClone(input);
   const gallery = find(s.galleries, args.galleryId, "Gallery");
   const claimed = gallery.operatingBalanceCents;
+  post(
+    s,
+    entry(
+      clock.id("je"),
+      clock.now(),
+      "OPERATING_TO_CREDITORS",
+      [
+        { account: acct.operating(gallery.id), cents: -claimed },
+        { account: acct.creditors(gallery.id), cents: claimed },
+      ],
+      gallery.id,
+    ),
+  );
   gallery.claimedByCreditorsCents =
     (gallery.claimedByCreditorsCents ?? 0) + claimed;
   gallery.operatingBalanceCents = 0;
@@ -448,17 +508,42 @@ export function attemptTrustMove(
   const gallery = find(input.galleries, sale.galleryId, "Gallery");
   const destination = args.kind === "rent" ? "operating" : "creditors";
 
+  // Layer 1, the journal: the move is submitted as a ledger entry, and the
+  // trust account's rule refuses it. Layer 2, the engine: the same move is
+  // sent to releaseTrust, which refuses it too. Both run on scratch copies,
+  // so even a guard that wrongly allowed it could not change the real books.
   let refusal: string;
   try {
-    // A scratch copy: if the guard ever let this through, the attempt still
-    // could not change the real books.
-    releaseTrust(structuredClone(input), holds, destination as "artist", clock);
-    throw new Error(
-      `Trust guard let ${formatCents(total)} go to ${destination}. This must never happen`,
+    const scratch = structuredClone(input);
+    post(
+      scratch,
+      entry(
+        clock.id("je"),
+        clock.now(),
+        "TRANSFER",
+        [
+          { account: acct.trust(gallery.id, artist.id), cents: -total },
+          {
+            account:
+              args.kind === "rent"
+                ? acct.operating(gallery.id)
+                : acct.creditors(gallery.id),
+            cents: total,
+          },
+        ],
+        sale.id,
+      ),
     );
+    throw new Error(`The ledger let trust go to ${destination}`);
+  } catch (err) {
+    if (!(err instanceof LedgerRejected)) throw err;
+    refusal = err.message;
+  }
+  try {
+    releaseTrust(structuredClone(input), holds, destination as "artist", clock);
+    throw new Error(`releaseTrust let trust go to ${destination}`);
   } catch (err) {
     if (!(err instanceof EscrowError)) throw err;
-    refusal = err.message;
   }
 
   const s = structuredClone(input);
@@ -470,7 +555,7 @@ export function attemptTrustMove(
     s,
     clock,
     "trust_move_refused",
-    `Refused: ${what} the ${formatCents(total)} held in trust for ${artist.name}. ${refusal}. Nothing moved`,
+    `Refused: ${what} the ${formatCents(total)} held in trust for ${artist.name}. The trust account can only pay the artist or refund the buyer. Nothing moved`,
     { galleryId: gallery.id, artistId: artist.id, amountCents: total },
   );
   return { snapshot: s, refusal };
@@ -503,6 +588,19 @@ export function cancelSale(
       const hold = s.holds.find((h) => h.paymentId === p.id);
       return sum + p.amountCents - (hold?.amountCents ?? 0);
     }, 0);
+  post(
+    s,
+    entry(
+      clock.id("je"),
+      clock.now(),
+      "OPERATING_TO_BUYER",
+      [
+        { account: acct.operating(gallery.id), cents: -galleryPart },
+        { account: acct.buyer(gallery.id, sale.id), cents: galleryPart },
+      ],
+      sale.id,
+    ),
+  );
   gallery.operatingBalanceCents -= galleryPart;
   const lockedTotal = releaseTrust(s, holds, "buyer", clock);
 

@@ -237,7 +237,9 @@ describe("attemptTrustMove: the gallery tries to spend trust", () => {
         { saleId, kind },
         clock,
       );
-      expect(refusal).toMatch(/Trust funds can only go to the artist/);
+      expect(refusal).toMatch(
+        /^Ledger refused TRANSFER: trust:gal_lowline:art_ines is held in trust/,
+      );
       for (const k of ["galleries", "holds", "payments", "payouts"] as const) {
         expect(after[k]).toEqual(s[k]);
       }

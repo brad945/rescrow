@@ -50,6 +50,14 @@ export function TrustProof({ snapshot }: { snapshot: Snapshot }) {
         <span className="font-medium">
           {r.balanced ? "Books balance to the cent ✓" : "Books don't balance"}
         </span>
+        {r.balanced && r.journalEntries ? (
+          <span
+            className="rounded-sm border border-trust/30 px-1.5 py-px text-[11px]"
+            title="A separate double-entry journal of every move, folded and checked against the balances above"
+          >
+            Journal agrees · {r.journalEntries} entries
+          </span>
+        ) : null}
         <span className="num text-ink/70">
           In <Money cents={r.openingCents + r.receivedCents} /> = operating{" "}
           <Money cents={r.operatingCents} /> + trust{" "}
