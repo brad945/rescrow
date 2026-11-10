@@ -46,7 +46,8 @@ function writes(): string[] {
 // status. Keep it short.
 const MANIFEST = [
   // The only exit from trust: artist (paid) or buyer (refunded), nothing else.
-  'lib/escrow/engine.ts releaseTrust: h.status = to === "artist" ? "paid" : "refunded";',
+  // The only hold status write, guarded by HOLD_TRANSITIONS; releaseTrust is its only caller.
+  "lib/escrow/engine.ts transition: hold.status = to;",
   // The only append to the journal, after the account rules pass.
   "lib/escrow/journal.ts apply: s.journal.push(e);",
   // A payout is recorded only for holds releaseTrust just released.
@@ -123,11 +124,11 @@ describe("architecture: every write that moves money is accounted for", () => {
     expect(outsideLib).toEqual([]);
   });
 
-  it("hold status changes happen in releaseTrust and nowhere else", () => {
+  it("hold status changes happen in transition() and nowhere else", () => {
     const holdStatus = writes().filter((w) =>
       /live\.status|hold\.status|\bh\.status/.test(w),
     );
-    expect(holdStatus.every((w) => w.includes(" releaseTrust: "))).toBe(true);
+    expect(holdStatus.every((w) => w.includes(" transition: "))).toBe(true);
     expect(holdStatus).toHaveLength(1);
   });
 });
@@ -161,5 +162,27 @@ describe("architecture: routes run on the demo clock", () => {
       if (/\bcreateSeed\(\)/.test(fs.readFileSync(file, "utf8"))) bad.push(rel);
     }
     expect(bad).toEqual([]);
+  });
+});
+
+describe("architecture: transition() is called from releaseTrust only", () => {
+  it("has exactly one caller", () => {
+    const callers: string[] = [];
+    for (const file of files(SRC)) {
+      let fn = "(top level)";
+      fs.readFileSync(file, "utf8")
+        .split("\n")
+        .forEach((line) => {
+          const m = line.match(/^(?:export )?(?:async )?function (\w+)/);
+          if (m) fn = m[1];
+          if (
+            /\btransition\(/.test(line) &&
+            !/function transition/.test(line)
+          ) {
+            callers.push(`${path.relative(SRC, file)} ${fn}`);
+          }
+        });
+    }
+    expect(callers).toEqual(["lib/escrow/engine.ts releaseTrust"]);
   });
 });

@@ -6,6 +6,7 @@ import type {
   AgreementTerms,
   Cents,
   EscrowHold,
+  HoldStatus,
   Id,
   PaymentMethod,
   Payout,
@@ -127,6 +128,27 @@ function addDays(iso: Timestamp, days: number): Timestamp {
 }
 
 /**
+ * Every legal change of a hold's status. A hold is locked when the buyer's
+ * money lands; it leaves trust exactly once, to the artist (paid) or back to
+ * the buyer (refunded), and both of those are final.
+ */
+export const HOLD_TRANSITIONS: Record<HoldStatus, HoldStatus[]> = {
+  locked: ["paid", "refunded"],
+  paid: [],
+  refunded: [],
+};
+
+/** Moves a hold to a new status if HOLD_TRANSITIONS allows it; throws otherwise. */
+export function transition(hold: EscrowHold, to: HoldStatus): void {
+  if (!HOLD_TRANSITIONS[hold.status].includes(to)) {
+    throw new EscrowError(
+      `Hold ${hold.id} can't go from ${hold.status} to ${to}`,
+    );
+  }
+  hold.status = to;
+}
+
+/**
  * The only way money leaves the artist trust. It can go to the artist or back
  * to the buyer who paid it, and nowhere else: not to the gallery's operating
  * account, not to its creditors. Mutates s; returns the total released.
@@ -180,7 +202,7 @@ export function releaseTrust(
 
   let total = 0;
   for (const h of live) {
-    h.status = to === "artist" ? "paid" : "refunded";
+    transition(h, to === "artist" ? "paid" : "refunded");
     h.releasedAt = at;
     total += h.amountCents;
   }

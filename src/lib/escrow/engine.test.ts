@@ -7,9 +7,12 @@ import {
   createSale,
   EscrowError,
   galleryTotals,
+  HOLD_TRANSITIONS,
   receivePayment,
+  transition,
   type Clock,
 } from "./engine";
+import type { EscrowHold } from "@/types";
 
 function testClock(): Clock {
   let n = 0;
@@ -190,5 +193,38 @@ describe("escrow engine", () => {
       testClock(),
     );
     expect(seed).toEqual(copy);
+  });
+});
+
+describe("hold lifecycle: every (state, target) pair", () => {
+  const STATES = ["locked", "paid", "refunded"] as const;
+  for (const from of STATES) {
+    for (const to of STATES) {
+      const legal = from === "locked" && to !== "locked";
+      it(`${from} -> ${to} is ${legal ? "allowed" : "refused"}`, () => {
+        const hold = {
+          id: "h",
+          saleId: "s",
+          paymentId: "p",
+          artistId: "a",
+          galleryId: "g",
+          amountCents: 1,
+          status: from,
+          lockedAt: "2026-11-10T00:00:00.000Z",
+          releasedAt: null,
+        } satisfies EscrowHold;
+        if (legal) {
+          transition(hold, to);
+          expect(hold.status).toBe(to);
+        } else {
+          expect(() => transition(hold, to)).toThrow(EscrowError);
+          expect(hold.status).toBe(from);
+        }
+      });
+    }
+  }
+  it("paid and refunded are terminal", () => {
+    expect(HOLD_TRANSITIONS.paid).toEqual([]);
+    expect(HOLD_TRANSITIONS.refunded).toEqual([]);
   });
 });
