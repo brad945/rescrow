@@ -59,7 +59,7 @@ Optional, about 5 seconds. Press `D` after any payment:
 
 > Last payment. The sale is complete, so Rescrow pays Ines out of the trust the same day, with a statement. Her agreement gave the gallery sixty days. She got paid the day the buyer finished paying.
 
-### Optional separate take: the deadline (press `R`, `→` three times, then `T`)
+### Optional separate take: the deadline (press `R`, `→` until payment 1 lands, then `T`)
 
 Record this as its own clip if there is time; it doesn't mix with the insolvency take (the `B` button hides once the clock has moved).
 
