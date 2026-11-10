@@ -101,6 +101,7 @@ export interface Sale {
   /** Payout window fixed from the agreement when the sale closed, so a later re-read can't move or block this sale's deadlines. */
   payoutDays?: number;
   status: SaleStatus;
+  cancelledAt?: Timestamp;
   createdAt: Timestamp;
 }
 
@@ -142,6 +143,8 @@ export interface Payout {
   amountCents: Cents;
   holdIds: Id[];
   paidAt: Timestamp;
+  /** Why trust was released: the sale completed, a payout deadline passed, or the gallery failed. */
+  reason?: "sale_complete" | "deadline" | "insolvency";
 }
 
 export type ActivityKind =

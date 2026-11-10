@@ -1,4 +1,4 @@
-import type { Cents, Id, Snapshot } from "@/types";
+import type { Cents, Id, Payout, Snapshot } from "@/types";
 import { methodLabel } from "@/lib/money";
 
 /** One line in the gallery's account ledger, the way a bank statement reads. */
@@ -46,10 +46,7 @@ export function ledgerFor(s: Snapshot, galleryId: Id): LedgerRow[] {
       id: po.id,
       at: po.paidAt,
       kind: "payout",
-      description:
-        failedAt && po.paidAt >= failedAt
-          ? "Paid out of trust, gallery insolvent"
-          : "Same day payout from artist trust",
+      description: payoutLabel(po.reason, failedAt, po.paidAt),
       counterparty: artistName(po.artistId),
       amountCents: -po.amountCents,
       trustCents: -po.amountCents,
@@ -61,23 +58,26 @@ export function ledgerFor(s: Snapshot, galleryId: Id): LedgerRow[] {
   for (const sale of s.sales.filter(
     (x) => x.galleryId === galleryId && x.status === "cancelled",
   )) {
-    const refunded = s.holds.filter(
-      (h) => h.saleId === sale.id && h.status === "refunded",
-    );
-    if (refunded.length === 0) continue;
+    const holds = s.holds.filter((h) => h.saleId === sale.id);
+    const refunded = holds.filter((h) => h.status === "refunded");
     const paid = s.payments
       .filter((p) => p.saleId === sale.id)
       .reduce((t, p) => t + p.amountCents, 0);
+    // The buyer gets back the locked artist share (from trust) and the
+    // gallery's part of every payment (from operating). A share already paid
+    // to the artist on its deadline stays with the artist.
     const trust = refunded.reduce((t, h) => t + h.amountCents, 0);
+    const operating = paid - holds.reduce((t, h) => t + h.amountCents, 0);
+    if (trust + operating === 0) continue;
     rows.push({
       id: `refund_${sale.id}`,
-      at: refunded[0].releasedAt ?? sale.createdAt,
+      at: sale.cancelledAt ?? refunded[0]?.releasedAt ?? sale.createdAt,
       kind: "refund",
       description: "Refund to buyer, sale cancelled",
       counterparty: sale.buyerName,
-      amountCents: -paid,
-      trustCents: -trust,
-      operatingCents: -(paid - trust),
+      amountCents: -(trust + operating),
+      trustCents: 0 - trust,
+      operatingCents: 0 - operating,
       artistId: sale.artistId,
     });
   }
@@ -101,6 +101,18 @@ export function ledgerFor(s: Snapshot, galleryId: Id): LedgerRow[] {
   return rows.sort((a, b) =>
     a.at === b.at ? order(b) - order(a) : b.at.localeCompare(a.at),
   );
+}
+
+function payoutLabel(
+  reason: Payout["reason"],
+  failedAt: string | null | undefined,
+  paidAt: string,
+): string {
+  if (reason === "deadline") return "Deadline payout from artist trust";
+  if (reason === "insolvency" || (failedAt && paidAt >= failedAt)) {
+    return "Paid out of trust, gallery insolvent";
+  }
+  return "Same day payout from artist trust";
 }
 
 // Within the same second, a deposit comes before the payout it triggers.

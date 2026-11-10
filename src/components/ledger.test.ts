@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyTerms,
   cancelSale,
   createSale,
   receivePayment,
+  releaseDueHolds,
   type Clock,
 } from "@/lib/escrow/engine";
-import { createSeed } from "@/lib/seed";
+import { createSeed, FIXTURE_TERMS } from "@/lib/seed";
 import { ledgerFor } from "./ledger";
 
 function clock(): Clock {
@@ -52,5 +54,52 @@ describe("ledgerFor", () => {
     expect(forSale.map((r) => r.kind).sort()).toEqual(["deposit", "refund"]);
     expect(forSale.reduce((t, r) => t + r.amountCents, 0)).toBe(0);
     expect(forSale.reduce((t, r) => t + r.trustCents, 0)).toBe(0);
+  });
+});
+
+describe("ledgerFor: deadline payouts and cancellations after them", () => {
+  it("labels a deadline payout as one, and shows the refund a buyer actually got", () => {
+    let t = Date.parse("2026-11-10T15:00:00.000Z");
+    let n = 0;
+    const clock: Clock = {
+      now: () => new Date(t).toISOString(),
+      id: (p) => `${p}_l${++n}`,
+    };
+    let s = applyTerms(
+      createSeed(),
+      {
+        agreementId: "agr_ines",
+        terms: FIXTURE_TERMS.agr_ines!,
+        source: "fixture",
+      },
+      clock,
+    );
+    const created = createSale(
+      s,
+      { artworkId: "wrk_orchard", buyerName: "M", installments: 3 },
+      clock,
+    );
+    s = receivePayment(
+      created.snapshot,
+      { saleId: created.sale.id },
+      clock,
+    ).snapshot;
+    t += 61 * 86_400_000;
+    s = releaseDueHolds(s, clock);
+    s = cancelSale(s, { saleId: created.sale.id }, clock).snapshot;
+
+    const rows = ledgerFor(s, "gal_lowline");
+    const payout = rows.find(
+      (r) => r.kind === "payout" && r.artistId === "art_ines",
+    )!;
+    expect(payout.description).toBe("Deadline payout from artist trust");
+    expect(payout.amountCents).toBe(-400_000);
+
+    // $8,000 paid: Ines kept her $4,000 (paid at the deadline); the gallery
+    // refunds its own $4,000 from operating; nothing comes out of trust.
+    const refund = rows.find((r) => r.kind === "refund")!;
+    expect(refund.amountCents).toBe(-400_000);
+    expect(refund.trustCents).toBe(0);
+    expect(refund.operatingCents).toBe(-400_000);
   });
 });

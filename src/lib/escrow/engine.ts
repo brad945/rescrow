@@ -8,6 +8,7 @@ import type {
   EscrowHold,
   Id,
   PaymentMethod,
+  Payout,
   Sale,
   Snapshot,
 } from "@/types";
@@ -121,6 +122,7 @@ function payOut(
   clock: Clock,
   kind: "payout_sent" | "deadline_payout",
   reason: string,
+  why: NonNullable<Payout["reason"]>,
 ): void {
   if (holds.length === 0) return;
   const sale = find(s.sales, holds[0].saleId, "Sale");
@@ -134,6 +136,7 @@ function payOut(
     amountCents: total,
     holdIds: holds.map((h) => h.id),
     paidAt: clock.now(),
+    reason: why,
   });
   log(
     s,
@@ -320,7 +323,7 @@ function payOutSale(s: Snapshot, saleId: Id, clock: Clock): void {
   const holds = s.holds.filter(
     (h) => h.saleId === saleId && h.status === "locked",
   );
-  payOut(s, holds, clock, "payout_sent", "");
+  payOut(s, holds, clock, "payout_sent", "", "sale_complete");
 }
 
 /**
@@ -345,6 +348,7 @@ export function releaseDueHolds(
       clock,
       "deadline_payout",
       ", on the deadline in the agreement",
+      "deadline",
     );
   }
   return s;
@@ -396,6 +400,7 @@ export function declareInsolvency(
       clock,
       "payout_sent",
       ", out of trust after the gallery's insolvency",
+      "insolvency",
     );
   }
   return { snapshot: s };
@@ -432,6 +437,7 @@ export function cancelSale(
   const lockedTotal = releaseTrust(s, holds, "buyer", clock);
 
   sale.status = "cancelled";
+  sale.cancelledAt = clock.now();
   artwork.status = "consigned";
 
   const ref = { galleryId: gallery.id, artistId: sale.artistId };
