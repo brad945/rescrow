@@ -6,8 +6,12 @@ import { Nav } from "@/components/Nav";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { Card, Money, Swatch } from "@/components/ui";
 import { useSnapshot } from "@/components/useSnapshot";
-import { galleryTotals, nextInstallment, paidSoFar } from "@/lib/escrow/engine";
-import { shareOf } from "@/lib/money";
+import {
+  artistShareOfPayment,
+  galleryTotals,
+  nextInstallment,
+  paidSoFar,
+} from "@/lib/escrow/engine";
 import type { PaymentMethod } from "@/types";
 
 const BUYERS = [
@@ -265,17 +269,12 @@ export default function DemoPage() {
                     const artist = snapshot.artists.find(
                       (a) => a.id === sale.artistId,
                     );
-                    const terms = snapshot.agreements.find(
-                      (a) => a.artistId === sale.artistId,
-                    )?.terms;
                     const paid = paidSoFar(snapshot, sale.id);
                     const count = snapshot.payments.filter(
                       (p) => p.saleId === sale.id,
                     ).length;
                     const next = nextInstallment(snapshot, sale);
-                    const locks = terms
-                      ? shareOf(next, terms.artistShareBps)
-                      : 0;
+                    const locks = artistShareOfPayment(snapshot, sale, next);
                     return (
                       <li key={sale.id} className="space-y-3 py-4">
                         <div className="flex items-center gap-3">

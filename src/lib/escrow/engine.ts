@@ -77,6 +77,23 @@ export function nextInstallment(s: Snapshot, sale: Sale): Cents {
   return Math.ceil((sale.priceCents - paid) / remainingInstallments);
 }
 
+/**
+ * The artist's share of a payment that is about to land. Rounds on the running
+ * total so every installment's share adds up to exactly the artist's share of
+ * the full price, with no stray cents.
+ */
+export function artistShareOfPayment(
+  s: Snapshot,
+  sale: Sale,
+  amountCents: Cents,
+): Cents {
+  const before = paidSoFar(s, sale.id);
+  return (
+    shareOf(before + amountCents, sale.artistShareBps) -
+    shareOf(before, sale.artistShareBps)
+  );
+}
+
 export function createSale(
   input: Snapshot,
   args: { artworkId: Id; buyerName: string; installments: number },
@@ -90,7 +107,7 @@ export function createSale(
   if (!Number.isInteger(args.installments) || args.installments < 1) {
     throw new EscrowError("Installments must be a whole number of at least 1");
   }
-  termsFor(s, artwork.artistId);
+  const terms = termsFor(s, artwork.artistId);
 
   const sale: Sale = {
     id: clock.id("sale"),
@@ -100,6 +117,7 @@ export function createSale(
     buyerName: args.buyerName.trim() || "Private collector",
     priceCents: artwork.priceCents,
     installments: args.installments,
+    artistShareBps: terms.artistShareBps,
     status: "open",
     createdAt: clock.now(),
   };
@@ -148,7 +166,6 @@ export function receivePayment(
   const artwork = find(s.artworks, sale.artworkId, "Artwork");
   const artist = find(s.artists, sale.artistId, "Artist");
   const gallery = find(s.galleries, sale.galleryId, "Gallery");
-  const terms = termsFor(s, sale.artistId);
   const method = args.method ?? "wire";
   const at = clock.now();
 
@@ -160,9 +177,9 @@ export function receivePayment(
     method,
     receivedAt: at,
   };
+  // Share is computed before the payment is recorded (it rounds on the running total).
+  const artistShare = artistShareOfPayment(s, sale, amount);
   s.payments.push(payment);
-
-  const artistShare = shareOf(amount, terms.artistShareBps);
   gallery.operatingBalanceCents += amount - artistShare;
 
   const hold: EscrowHold = {
@@ -191,7 +208,7 @@ export function receivePayment(
     s,
     clock,
     "hold_locked",
-    `Locked ${formatCents(artistShare)} for ${artist.name} from installment ${index} of ${sale.installments} on ${artwork.title}`,
+    `Locked ${formatCents(artistShare)} for ${artist.name} from ${index <= sale.installments ? `installment ${index} of ${sale.installments}` : `payment ${index}`} on ${artwork.title}`,
     { ...ref, amountCents: artistShare },
   );
 

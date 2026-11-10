@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Snapshot } from "@/types";
 
 const POLL_MS = 1500;
@@ -8,16 +8,30 @@ const POLL_MS = 1500;
 /** Live view of the demo state, plus a helper to call the demo routes. */
 export function useSnapshot() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [pollError, setPollError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Bumped whenever an action starts or finishes. A poll that began before
+  // that point would carry older state, so its result is dropped.
+  const generation = useRef(0);
+  const acting = useRef(false);
 
   const refresh = useCallback(async () => {
+    if (acting.current) return;
+    const startedAt = generation.current;
     try {
       const res = await fetch("/api/state", { cache: "no-store" });
       if (!res.ok) throw new Error(`State request failed (${res.status})`);
-      setSnapshot((await res.json()) as Snapshot);
+      const data = (await res.json()) as Snapshot;
+      if (startedAt !== generation.current || acting.current) return;
+      setSnapshot(data);
+      setPollError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setPollError(
+        err instanceof Error
+          ? `Lost connection to the server: ${err.message}`
+          : String(err),
+      );
     }
   }, []);
 
@@ -31,8 +45,11 @@ export function useSnapshot() {
 
   const act = useCallback(
     async (path: string, body?: unknown): Promise<boolean> => {
+      if (acting.current) return false;
+      acting.current = true;
+      generation.current += 1;
       setBusy(true);
-      setError(null);
+      setActionError(null);
       try {
         const res = await fetch(path, {
           method: "POST",
@@ -41,7 +58,7 @@ export function useSnapshot() {
         });
         const data = (await res.json()) as Snapshot | { error: string };
         if (!res.ok || "error" in data) {
-          setError(
+          setActionError(
             "error" in data ? data.error : `Request failed (${res.status})`,
           );
           return false;
@@ -49,14 +66,22 @@ export function useSnapshot() {
         setSnapshot(data);
         return true;
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        setActionError(err instanceof Error ? err.message : String(err));
         return false;
       } finally {
+        generation.current += 1;
+        acting.current = false;
         setBusy(false);
       }
     },
     [],
   );
 
-  return { snapshot, error, busy, act, clearError: () => setError(null) };
+  return {
+    snapshot,
+    error: actionError ?? pollError,
+    busy,
+    act,
+    clearError: () => setActionError(null),
+  };
 }

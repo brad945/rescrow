@@ -107,10 +107,9 @@ export default function ArtistPortal() {
                   )
                   .at(-1);
                 const paid = sale ? paidSoFar(snapshot, sale.id) : 0;
-                const yourCut =
-                  sale && terms
-                    ? shareOf(sale.priceCents, terms.artistShareBps)
-                    : null;
+                const yourCut = sale
+                  ? shareOf(sale.priceCents, sale.artistShareBps)
+                  : null;
                 return (
                   <li key={work.id} className="flex items-center gap-4 py-3">
                     <Swatch artwork={work} size={52} />

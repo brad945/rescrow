@@ -1,5 +1,6 @@
 import type { AgreementTerms, ConsignmentAgreement } from "@/types";
 import { FIXTURE_TERMS } from "@/lib/seed";
+import { EscrowError } from "@/lib/escrow/engine";
 
 export interface AgentResult {
   terms: AgreementTerms;
@@ -16,7 +17,9 @@ export async function readAgreement(
 ): Promise<AgentResult> {
   const fixture = FIXTURE_TERMS[agreement.id];
   if (!fixture) {
-    throw new Error(`No terms available for agreement ${agreement.id}`);
+    throw new EscrowError(
+      `The agent could not read agreement ${agreement.id}; no saved answer exists and no model is connected`,
+    );
   }
   return { terms: fixture, source: "fixture" };
 }

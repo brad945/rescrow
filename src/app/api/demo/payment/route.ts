@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, parseBody } from "@/lib/api";
 import { receivePayment } from "@/lib/escrow/engine";
-import { load, save } from "@/lib/store";
+import { mutate } from "@/lib/store";
 import type { ReceivePaymentRequest } from "@/types";
 
 const schema: z.ZodType<ReceivePaymentRequest> = z.object({
@@ -14,8 +14,10 @@ const schema: z.ZodType<ReceivePaymentRequest> = z.object({
 export async function POST(req: Request) {
   try {
     const body = await parseBody(req, schema);
-    const { snapshot } = receivePayment(load(), body);
-    save(snapshot);
+    const { snapshot } = await mutate((current) => {
+      const out = receivePayment(current, body);
+      return { snapshot: out.snapshot, result: out.hold };
+    });
     return NextResponse.json(snapshot);
   } catch (err) {
     return errorResponse(err);

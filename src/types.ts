@@ -74,6 +74,8 @@ export interface Sale {
   priceCents: Cents;
   /** Number of installments the buyer agreed to (1 = paid in full). */
   installments: number;
+  /** Artist share fixed from the agreement when the sale closed (basis points). */
+  artistShareBps: number;
   status: SaleStatus;
   createdAt: Timestamp;
 }

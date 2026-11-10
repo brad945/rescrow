@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
-import { reset } from "@/lib/store";
+import { errorResponse } from "@/lib/api";
+import { createSeed } from "@/lib/seed";
+import { mutate } from "@/lib/store";
 
-export function POST() {
-  return NextResponse.json(reset());
+export async function POST() {
+  try {
+    const { snapshot } = await mutate(() => ({
+      snapshot: createSeed(),
+      result: null,
+    }));
+    return NextResponse.json(snapshot);
+  } catch (err) {
+    return errorResponse(err);
+  }
 }
