@@ -38,9 +38,12 @@ let dir: string;
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "rescrow-flow-"));
   process.env.RESCROW_DATA_DIR = dir;
+  // The saved answers, so a running Ollama can't make the reads slow or vary.
+  process.env.RESCROW_AGENT = "fixture";
 });
 afterEach(() => {
   delete process.env.RESCROW_DATA_DIR;
+  delete process.env.RESCROW_AGENT;
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
