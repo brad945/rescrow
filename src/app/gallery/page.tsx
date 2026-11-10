@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Nav } from "@/components/Nav";
+import { ExplainDrawer } from "@/components/ExplainDrawer";
+import type { Metric } from "@/lib/explain";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { AgreementCard } from "@/components/AgreementCard";
 import { GalleryBalances, Ledger } from "@/components/GalleryAccount";
@@ -10,6 +13,7 @@ import { paidSoFar } from "@/lib/escrow/engine";
 
 export default function GalleryPage() {
   const { snapshot, error, busy, act } = useSnapshot();
+  const [explaining, setExplaining] = useState<Metric | null>(null);
   const gallery = snapshot?.galleries[0];
 
   if (!snapshot || !gallery) {
@@ -51,7 +55,15 @@ export default function GalleryPage() {
           </p>
         )}
 
-        <GalleryBalances snapshot={snapshot} />
+        <GalleryBalances snapshot={snapshot} onExplain={setExplaining} />
+        {explaining && (
+          <ExplainDrawer
+            snapshot={snapshot}
+            galleryId={gallery.id}
+            metric={explaining}
+            onClose={() => setExplaining(null)}
+          />
+        )}
 
         <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
           <Card title="Account activity" flush>

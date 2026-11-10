@@ -1,14 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Snapshot } from "@/types";
+import type { Metric } from "@/lib/explain";
 import { galleryTotals } from "@/lib/escrow/engine";
 import { ledgerFor } from "@/components/ledger";
 import { GALLERY } from "@/components/story";
 import { Money, ref, stamp } from "@/components/ui";
 import { useTween } from "@/components/useTween";
 
-export function GalleryBalances({ snapshot }: { snapshot: Snapshot }) {
+export function GalleryBalances({
+  snapshot,
+  onExplain,
+}: {
+  snapshot: Snapshot;
+  /** If given, the balances become buttons that open their records. */
+  onExplain?: (metric: Metric) => void;
+}) {
   const gallery =
     snapshot.galleries.find((g) => g.id === GALLERY) ?? snapshot.galleries[0];
   const totals = galleryTotals(snapshot, gallery.id);
@@ -32,10 +40,17 @@ export function GalleryBalances({ snapshot }: { snapshot: Snapshot }) {
             Operating, Ramp Checking ··4417
             {insolvent ? ", frozen by the administrator" : ""}
           </p>
-          <Money
-            cents={operating}
-            className={`mt-1 block text-[28px] font-medium ${insolvent ? "text-faint line-through" : ""}`}
-          />
+          <Figure
+            onClick={
+              onExplain &&
+              (() => onExplain(insolvent ? "creditors" : "operating"))
+            }
+          >
+            <Money
+              cents={operating}
+              className={`mt-1 block text-[28px] font-medium ${insolvent ? "text-faint line-through" : ""}`}
+            />
+          </Figure>
           <p
             className={`mt-1 text-xs ${insolvent ? "text-danger" : "text-muted"}`}
           >
@@ -53,10 +68,12 @@ export function GalleryBalances({ snapshot }: { snapshot: Snapshot }) {
           <p className="text-xs text-trust">
             Artist trust, Ramp Checking ··4425
           </p>
-          <Money
-            cents={trust}
-            className="mt-1 block text-[28px] font-medium text-trust"
-          />
+          <Figure onClick={onExplain && (() => onExplain("trust"))}>
+            <Money
+              cents={trust}
+              className="mt-1 block text-[28px] font-medium text-trust"
+            />
+          </Figure>
           {byArtist.length === 0 ? (
             <p className="mt-1 text-xs text-trust/80">
               Nothing held right now. Every artist is paid up.
@@ -74,6 +91,27 @@ export function GalleryBalances({ snapshot }: { snapshot: Snapshot }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** A balance, made a button only when there is somewhere to explain it. */
+function Figure({
+  onClick,
+  children,
+}: {
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  if (!onClick) return <>{children}</>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Show the records that sum to this"
+      className="block text-left underline decoration-dotted decoration-1 underline-offset-4 hover:opacity-80"
+    >
+      {children}
+    </button>
   );
 }
 
