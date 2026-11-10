@@ -8,7 +8,7 @@ Target length: 2:30. Hard cap 3:00.
 2. Press `R` to reset. You should see the title card with the Stephen Friedman quote.
 3. Browser zoom 125%, window 1440 x 900 or larger, hide bookmarks bar, turn on Do Not Disturb.
 4. Record at 1080p with clicks shown (QuickTime or Screen Studio).
-5. Drive everything with the keyboard: `→` next step, `I` gallery goes under, `C` buyer cancels, `R` reset.
+5. Drive everything with the keyboard: `→` next step, `B` gallery goes under, `C` buyer cancels, `R` reset.
 6. Record the voice separately if the room is loud, then lay it over. Add captions; judges often watch muted.
 
 ## Script
@@ -51,11 +51,11 @@ Cut the wait in editing if the read takes longer than about 10 seconds.
 
 > Last payment. The sale is complete, so Rescrow pays Ines out of the trust the same day, with a statement. Her agreement gave the gallery sixty days. She got paid the day the buyer finished paying.
 
-### 1:45 to 2:05, the gallery goes under (press `R`, `→` through payment 2, then `I`)
+### 1:45 to 2:05, the gallery goes under (second take: `R`, `→` until payment 2 lands, then `B`)
 
-Record this as a second take and cut it in. Don't use `C` in the same take.
+Record this as a second take and cut it in. It pays off the hook.
 
-> Now the case that matters. Halfway through the payments, the gallery fails. Creditors take everything in the operating account. But the eight thousand dollars in trust for Ines goes to Ines, not to them, because it was never the gallery's money. And the books still balance to the cent.
+> Now the worst case. Lowline Gallery goes under. Creditors take every dollar in operating, the same way Stephen Friedman's did. But the eight thousand dollars held for Ines was never the gallery's. Rescrow pays it out of trust straight to her. Same failure. This time the artist gets paid. And the books still balance to the cent.
 
 Optional, if there's time: `R`, run to payment 1, press `C` for the buyer cancelling. The artist's share goes back to the buyer straight from trust.
 

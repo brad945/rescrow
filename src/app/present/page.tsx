@@ -13,6 +13,7 @@ import {
 import { AgreementText } from "@/components/AgreementText";
 import { ArtworkImage } from "@/components/ArtworkImage";
 import { GalleryBalances, Ledger } from "@/components/GalleryAccount";
+import { TrustProof } from "@/components/TrustProof";
 import { Money, shortDate, stamp } from "@/components/ui";
 import { useSnapshot } from "@/components/useSnapshot";
 import { useTween } from "@/components/useTween";
@@ -75,7 +76,7 @@ export default function PresentPage() {
         reset();
       } else if (e.key === "c" || e.key === "C") {
         cancel();
-      } else if (e.key === "i" || e.key === "I") {
+      } else if (e.key === "b" || e.key === "B") {
         fail();
       }
     }
@@ -214,6 +215,7 @@ export default function PresentPage() {
                 </div>
               ) : (
                 <>
+                  <TrustProof snapshot={snapshot} />
                   <GalleryBalances snapshot={snapshot} />
                   <section className="rounded-md border border-line bg-card">
                     <h2 className="border-b border-line px-4 py-3 text-sm font-semibold">
@@ -250,6 +252,7 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
     .slice(0, 4);
   const gallery = snapshot.galleries[0];
   const failed = gallery.status === "insolvent";
+  // Earliest date the agreement lets the gallery hold any of Ines's share.
   const dueBy = snapshot.holds
     .filter((h) => h.artistId === ARTIST && h.status === "locked" && h.dueBy)
     .map((h) => h.dueBy!)
@@ -282,16 +285,13 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
               <p className="mt-1 text-[11px] leading-snug text-white/70">
                 In trust at Lowline Gallery. Not the gallery&apos;s money, even
                 if it closes.
-                {dueBy && (
-                  <>
-                    {" "}
-                    Your agreement says you&apos;re paid by {shortDate(
-                      dueBy,
-                    )}{" "}
-                    at the latest.
-                  </>
-                )}
               </p>
+              {dueBy && (
+                <p className="num mt-1 text-[11px] text-white">
+                  Paid to you by {shortDate(dueBy)} at the latest, per your
+                  agreement
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-between rounded-xl bg-card px-4 py-3">

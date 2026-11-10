@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   applyTerms,
   cancelSale,
-  declareInsolvency,
   createSale,
+  declareInsolvency,
   receivePayment,
 } from "@/lib/escrow/engine";
 import { createSeed, FIXTURE_TERMS } from "@/lib/seed";
@@ -62,15 +62,21 @@ describe("presenter story", () => {
     expect(stepFor(s).next!.label).toBe("Final $8,000.00 wire arrives");
   });
 
-  it("ends on the insolvency beat with Ines paid from trust", () => {
+  it("offers the gallery failure once money is in trust, then ends with Ines paid", () => {
     let s = createSeed();
-    for (let i = 0; i < 4; i++) s = advance(s); // read, sell, two payments
+    s = advance(advance(s));
+    expect(stepFor(s).canFail).toBeFalsy();
+    s = advance(advance(s));
     expect(stepFor(s).canFail).toBe(true);
     s = declareInsolvency(s, { galleryId: "gal_lowline" }).snapshot;
     const step = stepFor(s);
     expect(step.index).toBe(7);
     expect(step.next).toBeUndefined();
+    expect(step.caption).toMatch(/This time the artist gets paid/);
     // Two payments of $8,000 at 50%: $8,000 was in trust for Ines.
-    expect(step.caption).toContain("The $8,000.00 held in trust for Ines");
+    expect(step.caption).toContain("$8,000.00");
+    expect(
+      s.payouts.filter((p) => p.artistId === "art_ines").at(-1)!.amountCents,
+    ).toBe(800_000);
   });
 });

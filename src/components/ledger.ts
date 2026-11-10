@@ -5,7 +5,7 @@ import { methodLabel } from "@/lib/money";
 export interface LedgerRow {
   id: string;
   at: string;
-  kind: "deposit" | "payout" | "refund";
+  kind: "deposit" | "payout" | "refund" | "claim";
   description: string;
   counterparty: string;
   amountCents: Cents;
@@ -79,6 +79,22 @@ export function ledgerFor(s: Snapshot, galleryId: Id): LedgerRow[] {
       trustCents: -trust,
       operatingCents: -(paid - trust),
       artistId: sale.artistId,
+    });
+  }
+
+  // Insolvency: creditors take the operating cash, never the trust.
+  const gallery = s.galleries.find((g) => g.id === galleryId);
+  if (gallery?.status === "insolvent" && gallery.claimedByCreditorsCents) {
+    rows.push({
+      id: `claim_${galleryId}`,
+      at: gallery.insolventAt ?? "",
+      kind: "claim",
+      description: "Seized by creditors, gallery insolvent",
+      counterparty: "Administrator",
+      amountCents: -gallery.claimedByCreditorsCents,
+      trustCents: 0,
+      operatingCents: -gallery.claimedByCreditorsCents,
+      artistId: "",
     });
   }
 
