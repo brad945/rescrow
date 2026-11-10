@@ -5,9 +5,10 @@
 // money held for artists is restricted cash owed to them (a liability), never
 // revenue. Nothing here posts or changes state.
 //
-// One simplification, stated on screen: commission is booked as revenue when
-// each payment lands and reversed if the sale is cancelled. Holding it as a
-// buyer deposit until the sale completes would be stricter.
+// The gallery is an agent: its commission is earned when a sale completes.
+// Until then its part of each installment is the buyer's deposit (2020); the
+// receipt that completes the sale recognises all of it as commission (4010),
+// and a cancelled sale hands the deposit back from 2020.
 import type { Cents, Id, JournalCode, Snapshot } from "@/types";
 import { formatCents } from "@/lib/money";
 import {
@@ -41,6 +42,12 @@ export const CHART: Record<string, GlAccount> = {
   "2010": {
     code: "2010",
     name: "Due to artists",
+    normal: "credit",
+    kind: "liability",
+  },
+  "2020": {
+    code: "2020",
+    name: "Buyer deposits, gallery part",
     normal: "credit",
     kind: "liability",
   },
@@ -123,9 +130,27 @@ export function glLines(s: Snapshot, galleryId: Id): GlLine[] {
         add("3000", "credit", total("operating"), "Opening operating balance");
         break;
       case "RECEIPT_SPLIT": {
-        const commission = total("operating");
-        add("1010", "debit", commission, "Buyer payment, gallery part");
-        add("4010", "credit", commission, "Commission on buyer payment");
+        const part = total("operating");
+        add("1010", "debit", part, "Buyer payment, gallery part");
+        add(
+          "2020",
+          "credit",
+          part,
+          "Held as the buyer's deposit until the sale completes",
+        );
+        // The receipt that completes its sale recognises the whole
+        // commission. Decided from the running total up to this payment, so
+        // a GL entry never changes after it is posted.
+        const earned = commissionCompletedBy(s, e.ref);
+        if (earned > 0) {
+          add(
+            "2020",
+            "debit",
+            earned,
+            "Sale complete: deposit becomes commission",
+          );
+          add("4010", "credit", earned, "Commission earned, sale complete");
+        }
         for (const t of of("trust")) {
           add(
             "1020",
@@ -160,10 +185,10 @@ export function glLines(s: Snapshot, galleryId: Id): GlLine[] {
         const covered =
           s.refunds.find((r) => r.saleId === e.ref)?.coveredByGalleryCents ?? 0;
         add(
-          "4010",
+          "2020",
           "debit",
           out - covered,
-          "Commission reversed, sale cancelled",
+          "Buyer's deposit returned, sale cancelled",
         );
         add("5010", "debit", covered, "Gallery covers a share the artist kept");
         add("1010", "credit", out, "Refund to buyer from operating");
@@ -189,6 +214,67 @@ export function glLines(s: Snapshot, galleryId: Id): GlLine[] {
     }
   }
   return lines;
+}
+
+/**
+ * If payment `paymentId` completes its sale (the running total of that sale's
+ * payments, in recorded order, reaches the price), the gallery's part of all
+ * of them; otherwise 0.
+ */
+function commissionCompletedBy(s: Snapshot, paymentId: Id | null): Cents {
+  const payment = s.payments.find((p) => p.id === paymentId);
+  const sale = payment && s.sales.find((x) => x.id === payment.saleId);
+  if (!payment || !sale) return 0;
+  const all = s.payments.filter((p) => p.saleId === sale.id);
+  const prefix = all.slice(0, all.findIndex((p) => p.id === payment.id) + 1);
+  if (prefix.reduce((t, p) => t + p.amountCents, 0) !== sale.priceCents)
+    return 0;
+  return prefix.reduce((t, p) => {
+    const hold = s.holds.find((h) => h.paymentId === p.id);
+    return t + p.amountCents - (hold?.amountCents ?? 0);
+  }, 0);
+}
+
+export interface IncomeStatement {
+  basis: "accrual" | "cash";
+  commissionCents: Cents;
+  coveredRefundsCents: Cents;
+  netCents: Cents;
+}
+
+/**
+ * Commission earned, on either basis, from the same GL lines. Accrual: what
+ * was recognised when sales completed (4010). Cash: the gallery's part of
+ * buyer money received, less what was handed back on cancellations. Refunds
+ * the gallery covered for artists (5010) are an expense on both.
+ */
+export function incomeStatement(
+  lines: GlLine[],
+  basis: "accrual" | "cash",
+): IncomeStatement {
+  const sum = (
+    pred: (l: GlLine) => boolean,
+    side: "debitCents" | "creditCents",
+  ) => lines.filter(pred).reduce((t, l) => t + l[side], 0);
+  const commissionCents =
+    basis === "accrual"
+      ? sum((l) => l.account === "4010", "creditCents") -
+        sum((l) => l.account === "4010", "debitCents")
+      : sum(
+          (l) => l.account === "2020" && l.code === "RECEIPT_SPLIT",
+          "creditCents",
+        ) -
+        sum(
+          (l) => l.account === "2020" && l.code === "OPERATING_TO_BUYER",
+          "debitCents",
+        );
+  const coveredRefundsCents = sum((l) => l.account === "5010", "debitCents");
+  return {
+    basis,
+    commissionCents,
+    coveredRefundsCents,
+    netCents: commissionCents - coveredRefundsCents,
+  };
 }
 
 export interface TrialBalanceRow {

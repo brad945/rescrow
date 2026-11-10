@@ -14,6 +14,7 @@ import { reconcile } from "@/lib/escrow/reconcile";
 import {
   flowMatrix,
   glLines,
+  incomeStatement,
   toCsv,
   toQuickBooksJson,
   trialBalance,
@@ -122,6 +123,63 @@ describe("books: general ledger from the journal", () => {
       s.refunds.reduce((a, r) => a + r.coveredByGalleryCents, 0),
     );
     expect(row("5010")).toBeGreaterThan(0);
+  });
+
+  it("commission is a buyer deposit (2020) until the sale completes, then revenue (4010)", () => {
+    const part = (s: Snapshot, saleId: string) =>
+      s.payments
+        .filter((p) => p.saleId === saleId)
+        .reduce((t, p) => {
+          const h = s.holds.find((x) => x.paymentId === p.id)!;
+          return t + p.amountCents - h.amountCents;
+        }, 0);
+    for (const s of steps) {
+      const tb = trialBalance(glLines(s, G));
+      const row = (code: string) =>
+        tb.rows.find((r) => r.account.code === code)!.balanceCents;
+      const open = s.sales.filter((x) => x.status === "open");
+      const done = s.sales.filter((x) => x.status === "paid");
+      expect(row("2020")).toBe(open.reduce((t, x) => t + part(s, x.id), 0));
+      expect(row("4010")).toBe(done.reduce((t, x) => t + part(s, x.id), 0));
+    }
+  });
+
+  it("a completing receipt's GL lines never change later (exports stay stable)", () => {
+    const mid = steps[4];
+    const last = steps.at(-1)!;
+    const ids = new Set(mid.journal.map((e) => e.id));
+    const at = (s: Snapshot) => glLines(s, G).filter((l) => ids.has(l.entryId));
+    expect(at(last)).toEqual(at(mid));
+  });
+
+  it("a cancelled sale nets to zero in buyer deposits", () => {
+    const s = steps.at(-2)!; // after the covered cancel, before insolvency
+    const cancelled = s.sales.find((x) => x.status === "cancelled")!;
+    const payIds = new Set(
+      s.payments.filter((p) => p.saleId === cancelled.id).map((p) => p.id),
+    );
+    const entries = new Set(
+      s.journal
+        .filter((e) => (e.ref && payIds.has(e.ref)) || e.ref === cancelled.id)
+        .map((e) => e.id),
+    );
+    const net = glLines(s, G)
+      .filter((l) => l.account === "2020" && entries.has(l.entryId))
+      .reduce((t, l) => t + l.creditCents - l.debitCents, 0);
+    expect(net).toBe(0);
+  });
+
+  it("cash minus accrual commission is exactly what is still held as deposits", () => {
+    for (const s of steps) {
+      const lines = glLines(s, G);
+      const deposits = trialBalance(lines).rows.find(
+        (r) => r.account.code === "2020",
+      )!.balanceCents;
+      expect(
+        incomeStatement(lines, "cash").commissionCents -
+          incomeStatement(lines, "accrual").commissionCents,
+      ).toBe(deposits);
+    }
   });
 
   it("a hold edited in the records, but not in the journal, breaks the tie-out and the coverage", () => {

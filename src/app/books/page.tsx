@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Nav } from "@/components/Nav";
 import { GALLERY } from "@/components/story";
 import { Card, Money, stamp } from "@/components/ui";
@@ -15,6 +15,7 @@ import {
   glLines,
   toCsv,
   toQuickBooksJson,
+  incomeStatement,
   trialBalance,
   trustTieOut,
 } from "@/lib/books";
@@ -33,6 +34,7 @@ const MATRIX = flowMatrix();
 
 export default function BooksPage() {
   const { snapshot, error } = useSnapshot();
+  const [basis, setBasis] = useState<"accrual" | "cash">("accrual");
   const gallery = snapshot?.galleries.find((g) => g.id === GALLERY);
 
   if (!snapshot || !gallery) {
@@ -53,6 +55,7 @@ export default function BooksPage() {
   const name = (id: string | null) =>
     snapshot.artists.find((a) => a.id === id)?.name ?? id ?? "";
   const entries = [...snapshot.journal].reverse().slice(0, 12);
+  const income = incomeStatement(lines, basis);
 
   return (
     <>
@@ -142,9 +145,10 @@ export default function BooksPage() {
               </tbody>
             </table>
             <p className="px-4 py-3 text-[11px] text-muted">
-              Commission is booked as revenue when each payment lands and
-              reversed if the sale is cancelled. Holding it as a deposit until
-              the sale completes would be stricter.
+              The gallery&apos;s part of each payment is held as the
+              buyer&apos;s deposit (2020) until the sale completes, then
+              recognised as commission (4010). A cancelled sale returns it from
+              2020.
             </p>
           </Card>
 
@@ -233,6 +237,54 @@ export default function BooksPage() {
             </div>
           </Card>
         </div>
+
+        <Card
+          title="Commission earned"
+          action={
+            <div className="flex rounded border border-line text-[12px]">
+              {(["accrual", "cash"] as const).map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  onClick={() => setBasis(b)}
+                  className={`px-2.5 py-1 capitalize ${basis === b ? "bg-row font-medium text-ink" : "text-muted"}`}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          <dl className="grid gap-3 text-[13px] sm:grid-cols-3">
+            <div>
+              <dt className="text-[11px] text-muted">Commission</dt>
+              <dd className="text-lg font-medium">
+                <Money cents={income.commissionCents} />
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[11px] text-muted">
+                Refunds covered for artists
+              </dt>
+              <dd className="text-lg font-medium">
+                <Money cents={-income.coveredRefundsCents} />
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[11px] text-muted">Net</dt>
+              <dd className="text-lg font-semibold">
+                <Money cents={income.netCents} />
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-2 text-[11px] text-muted">
+            {basis === "accrual"
+              ? "Accrual: commission counts when a sale completes."
+              : "Cash: the gallery's part of buyer money as it arrives, less what cancellations handed back."}{" "}
+            The difference is exactly what is still held as buyer deposits.
+            Money held for artists is never in either.
+          </p>
+        </Card>
 
         <Card title="Journal, newest first" flush>
           <ul className="divide-y divide-line/60 text-[12px]">
