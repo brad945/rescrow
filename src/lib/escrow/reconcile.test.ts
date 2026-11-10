@@ -1,0 +1,143 @@
+// Planted-break catalogue: start from healthy books, corrupt them one way at a
+// time, and check reconcile() names each corruption. A reconciliation that
+// passes everything proves nothing; this proves each check can fail.
+import { describe, expect, it } from "vitest";
+import { createSeed, FIXTURE_TERMS } from "@/lib/seed";
+import type { Snapshot } from "@/types";
+import {
+  applyTerms,
+  createSale,
+  declareInsolvency,
+  receivePayment,
+  type Clock,
+} from "./engine";
+import { reconcile } from "./reconcile";
+
+const G = "gal_lowline";
+
+function clock(): Clock {
+  let n = 0;
+  return {
+    now: () => "2026-11-10T15:00:00.000Z",
+    id: (prefix) => `${prefix}_p${++n}`,
+  };
+}
+
+/** Healthy books: Ines's sale with two of three payments in, one hold paid out earlier in the seed. */
+function healthy(): Snapshot {
+  const c = clock();
+  let s = applyTerms(
+    createSeed(),
+    {
+      agreementId: "agr_ines",
+      terms: FIXTURE_TERMS.agr_ines!,
+      source: "fixture",
+    },
+    c,
+  );
+  const { sale, snapshot } = createSale(
+    s,
+    { artworkId: "wrk_orchard", buyerName: "M", installments: 3 },
+    c,
+  );
+  s = receivePayment(snapshot, { saleId: sale.id }, c).snapshot;
+  s = receivePayment(s, { saleId: sale.id }, c).snapshot;
+  return s;
+}
+
+const gallery = (s: Snapshot) => s.galleries.find((g) => g.id === G)!;
+const locked = (s: Snapshot) => s.holds.find((h) => h.status === "locked")!;
+
+const PLANTS: [string, (s: Snapshot) => void, RegExp][] = [
+  [
+    "a cent appears in operating",
+    (s) => void (gallery(s).operatingBalanceCents += 1),
+    /Operating balance is/,
+  ],
+  [
+    "a cent vanishes from trust",
+    (s) => void (locked(s).amountCents -= 1),
+    /came in but/,
+  ],
+  [
+    "trust holds more than the payment",
+    (s) => {
+      const h = locked(s);
+      h.amountCents =
+        s.payments.find((p) => p.id === h.paymentId)!.amountCents + 1;
+    },
+    /put more in trust than was received/,
+  ],
+  [
+    "a payment loses its hold",
+    (s) => {
+      const h = locked(s);
+      s.holds = s.holds.filter((x) => x !== h);
+    },
+    /has 0 trust holds, expected 1/,
+  ],
+  [
+    "a payment gets two holds",
+    (s) => void s.holds.push({ ...locked(s), id: "hold_dup", amountCents: 0 }),
+    /has 2 trust holds, expected 1/,
+  ],
+  [
+    "a hold is marked paid with no payout",
+    (s) => void (locked(s).status = "paid"),
+    /Payouts total .* but paid trust holds total/,
+  ],
+  [
+    "a payout lists the same hold twice",
+    (s) => {
+      const p = s.payouts[0];
+      p.holdIds = [...p.holdIds, p.holdIds[0]];
+    },
+    /more than one payout/,
+  ],
+  [
+    "a payout is inflated",
+    (s) => void (s.payouts[0].amountCents += 100),
+    /Payouts total/,
+  ],
+  [
+    "a payment is recorded that never split",
+    (s) => void s.payments.push({ ...s.payments.at(-1)!, id: "pay_ghost" }),
+    /pay_ghost has 0 trust holds/,
+  ],
+  [
+    "operating goes negative",
+    (s) => {
+      const g = gallery(s);
+      const shift = g.operatingBalanceCents + 1;
+      g.operatingBalanceCents -= shift;
+      g.openingBalanceCents = (g.openingBalanceCents ?? 0) - shift;
+    },
+    /Operating balance is negative/,
+  ],
+  [
+    "the opening balance is missing",
+    (s) => void delete gallery(s).openingBalanceCents,
+    /No opening balance on record/,
+  ],
+];
+
+describe("reconcile: planted-break catalogue", () => {
+  it("the unplanted books balance", () => {
+    expect(reconcile(healthy(), G).breaks).toEqual([]);
+  });
+
+  it.each(PLANTS)("catches: %s", (_name, plant, expected) => {
+    const s = structuredClone(healthy());
+    plant(s);
+    const r = reconcile(s, G);
+    expect(r.balanced).toBe(false);
+    expect(r.breaks.join("\n")).toMatch(expected);
+  });
+
+  it("still catches a planted break after insolvency", () => {
+    const s = declareInsolvency(healthy(), { galleryId: G }, clock()).snapshot;
+    expect(reconcile(s, G).balanced).toBe(true);
+    s.payouts.at(-1)!.amountCents -= 1;
+    expect(reconcile(s, G).balanced).toBe(false);
+  });
+});

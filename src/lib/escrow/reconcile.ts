@@ -60,6 +60,14 @@ export function reconcile(s: Snapshot, galleryId: Id): Reconciliation {
   const refundedToBuyersCents = refundedHolds + galleryPartsRefunded;
   const claimedByCreditorsCents = gallery.claimedByCreditorsCents ?? 0;
   const operatingCents = gallery.operatingBalanceCents;
+  // Without a recorded opening balance the operating check would be true by
+  // construction (the opening would be derived from operating itself), so a
+  // missing opening is a break of its own, not a silent pass.
+  if (gallery.openingBalanceCents === undefined) {
+    breaks.push(
+      "No opening balance on record, so the operating balance can't be checked",
+    );
+  }
   const openingCents =
     gallery.openingBalanceCents ??
     operatingCents -
