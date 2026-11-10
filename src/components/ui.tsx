@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { Artwork, HoldStatus, SaleStatus } from "@/types";
+import type { Artwork, ArtworkStatus, HoldStatus, SaleStatus } from "@/types";
 import { formatCents } from "@/lib/money";
 
 export function Money({
@@ -34,16 +34,16 @@ export function Swatch({
   );
 }
 
-const PILL: Record<SaleStatus | HoldStatus | "consigned" | "returned", string> =
-  {
-    open: "bg-gallery-soft text-gallery",
-    paid: "bg-paid-soft text-paid",
-    cancelled: "bg-line text-muted",
-    locked: "bg-lock-soft text-lock",
-    refunded: "bg-line text-muted",
-    consigned: "bg-card text-muted border border-line",
-    returned: "bg-line text-muted",
-  };
+const PILL: Record<SaleStatus | HoldStatus | ArtworkStatus, string> = {
+  open: "bg-gallery-soft text-gallery",
+  paid: "bg-paid-soft text-paid",
+  cancelled: "bg-line text-muted",
+  locked: "bg-lock-soft text-lock",
+  refunded: "bg-line text-muted",
+  consigned: "bg-card text-muted border border-line",
+  returned: "bg-line text-muted",
+  sold: "bg-paid-soft text-paid",
+};
 
 const PILL_LABEL: Partial<Record<keyof typeof PILL, string>> = {
   open: "in progress",

@@ -9,7 +9,7 @@ import type {
   Sale,
   Snapshot,
 } from "@/types";
-import { formatCents, shareOf } from "@/lib/money";
+import { formatCents, methodLabel, shareOf } from "@/lib/money";
 
 // Pure escrow rules. Each function returns a new snapshot and never mutates
 // its input, so routes can load, apply, and save.
@@ -184,7 +184,7 @@ export function receivePayment(
     s,
     clock,
     "payment_received",
-    `${method.toUpperCase()} of ${formatCents(amount)} from ${sale.buyerName} landed in Ramp`,
+    `${methodLabel(method)} of ${formatCents(amount)} from ${sale.buyerName} landed in Ramp`,
     { ...ref, amountCents: amount },
   );
   log(
