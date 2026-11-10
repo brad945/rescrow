@@ -1,10 +1,10 @@
 # Rescrow
 
-Escrow for art galleries, built on Ramp. When a consigned work sells, an agent reads the consignment agreement and works out the artist's share. Each time a buyer payment lands in the gallery's Ramp account, the artist's share moves to a separate artist trust account the gallery can't spend from. When the buyer finishes paying, the artist is paid that day, with a statement.
+Escrow for art galleries, built on Ramp. When a consigned work sells, an agent reads the consignment agreement and works out the artist's share. Each time a buyer payment lands in the gallery's Ramp account, the artist's share moves to a separate artist trust account the gallery can't spend from. When the buyer finishes paying, the artist is paid that day, with a statement. If the buyer is still paying when the agreement's deadline comes, that share is paid on the deadline anyway.
 
 New York already treats an artist's sale proceeds as trust funds (Arts and Cultural Affairs Law section 12.01), but nothing makes a gallery keep them apart from rent and payroll. When Stephen Friedman Gallery entered administration in February 2026 it owed Kehinde Wiley £163,849, with creditors expected to recover 8 to 9 pence per pound.
 
-BBS x Ramp Hackathon, build round. Team: Bradley Tsou, Neil Saji, Takenosuke Nagata.
+BBS x Ramp Hackathon, build round. Team: Bradley Tsou, Neil Saji.
 
 ## Run it
 
@@ -13,25 +13,42 @@ npm install
 npm run dev          # http://localhost:3333
 ```
 
-| Page       | What it is                                                                                                                                            |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/present` | The demo. Gallery account on the left, the artist's phone on the right. `→` next step, `C` buyer cancels, `R` reset. Script in `docs/demo-script.md`. |
-| `/gallery` | Gallery view: operating and trust balances, account ledger, sales, agreements with the agent's cited clauses.                                         |
-| `/artist`  | Each artist's view: held in trust, paid, statements.                                                                                                  |
-| `/demo`    | Simulator for buyers and incoming transfers.                                                                                                          |
+| Page       | What it is                                                                                                                                                                                                                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/present` | The demo. Gallery account on the left, the artist's phone on the right. Keys: `→` next step, `G` gallery tries to spend trust, `T` jump the demo clock 61 days, `D` the bank feed redelivers the last wire, `C` buyer cancels, `B` gallery goes under, `R` reset. Script in `docs/demo-script.md`. |
+| `/gallery` | Gallery view: operating and trust balances, account ledger, sales, agreements with the agent's cited clauses.                                                                                                                                                                                      |
+| `/books`   | The accountant's view: trial balance, trust tie-out, where money may go, the journal, CSV and QuickBooks-style exports.                                                                                                                                                                            |
+| `/artist`  | Each artist's view: held in trust, deadlines, paid, statements.                                                                                                                                                                                                                                    |
+| `/demo`    | Simulator for buyers and incoming transfers.                                                                                                                                                                                                                                                       |
+| `/lab`     | Try the agreement reader on any agreement.                                                                                                                                                                                                                                                         |
 
-Demo data lives in `data/db.json` (gitignored), created from `src/lib/seed.ts` on first load. Reset puts it back.
+Demo data lives in `data/db.json` (gitignored), created from `src/lib/seed.ts` on first load. Reset puts it back, with the seeded history dated relative to now.
 
 ## How it maps onto Ramp
 
 - The gallery keeps its normal **Ramp Checking Account** for operating cash and opens a second Ramp Checking Account titled as artist trust. Ramp supports multiple checking accounts per business.
-- Ramp's Developer API exposes banking accounts and banking transactions but has no webhook for incoming deposits, so the production design polls `GET /developer/v1/banking/syncable-transactions` and matches deposits to open sales. In this build that feed is simulated (`/demo`).
+- Ramp's Developer API exposes banking accounts and banking transactions but has no webhook for incoming deposits, so the production design polls `GET /developer/v1/banking/syncable-transactions` and matches deposits to open sales. Polls overlap, so ingest is idempotent on Ramp's transaction id (`receivePayment`, `src/lib/feed/ramp.ts`): a redelivered transaction books nothing, and the same id with different details is refused. In this build the feed is simulated (`/demo`, and a fake feed in tests that repeats and reorders pages).
 - Payouts to artists would go out through Ramp transfers from the trust account.
 - The agreement reader fits next to Ramp's contract-aware AP and procurement agents.
 
+## The money, and how we prove it
+
+Every rule below is enforced in code and checked by tests. None of it is a convention.
+
+- **Two records of every move.** The engine keeps balances, holds, payouts and refunds. Beside them, every money move is also posted to a double-entry journal (`src/lib/escrow/journal.ts`): one entry per move, postings summing to zero, over accounts scoped to the gallery (operating, trust per artist, artist, buyer per sale, creditors, opening equity). `reconcile()` folds the journal and checks it against the records to the cent, account by account.
+- **The trust rule lives on the account.** `ACCOUNT_RULES` is data. Trust and operating never go below zero. Trust can only be debited by `TRUST_TO_ARTIST` or `TRUST_TO_BUYER`, only to its own artist or a buyer of that gallery. Operating can only go to buyers (refunds) or creditors. `post()` never debits trust at all; `postTrustRelease()` is the one door, and only `releaseTrust()` calls it. Press `G` on `/present` to watch the gallery try to pay rent from trust and get refused, with nothing moving.
+- **The architecture is tested, not just reviewed.** `src/lib/escrow/architecture.test.ts` scans the source: a manifest of every line that writes money (a new one fails the build until it is added); hold status changes only inside `transition()` over `HOLD_TRANSITIONS` (locked goes to paid or refunded, both final); the journal's posting functions imported only by the engine; every API route running on the demo clock.
+- **Reconciliation that can fail.** `reconcile()` checks opening + received = operating + trust + paid to artists + refunded to buyers + taken by creditors, plus per-payment holds, payouts against holds, refund records against holds, bank-id completeness and the journal. `src/lib/escrow/reconcile.test.ts` plants nineteen different corruptions in healthy books and checks that each one is named.
+- **The buyer is always made whole.** A cancelled sale writes a `Refund` record. The artist's locked share comes back from trust; the gallery's part comes from operating; a share the artist was already paid on its deadline stays with the artist, and the gallery covers it from operating. If operating can't cover it, the cancel is refused.
+- **Deadlines fire.** Each held share is due on its agreement's deadline (`dueBy`) and is paid at completion or at the deadline, whichever comes first. The demo clock (`T` on `/present`) moves a snapshot's clock forward so you can watch it happen. Every route builds its clock with `clockFor(snapshot)`, so events stay in order.
+- **Insolvency.** Creditors take operating. Trust is paid to the artists, and unsold consigned works go back to them.
+- **Random testing with coverage gates.** `src/lib/escrow/model.test.ts` runs 250 seeded histories of 60 steps: sales across artists, awkward partial payments, duplicate and conflicting bank deliveries, overpayments, cancellations, clock jumps, refused trust moves and insolvency. It checks reconciliation and a dozen invariants after every step, and fails unless the runs actually reach every outcome (a typical batch has hundreds of deadline payouts, refused trust moves and ignored duplicates). Planting the old per-payment rounding bug makes it fail on seed 1, step 5.
+- **The recorded demo is a test.** `src/app/api/demo-flow.test.ts` drives `/present`'s steps through the real route handlers and pins every number the narration says.
+- **Books for the accountant.** `src/lib/books.ts` turns the journal into a general ledger where trust is restricted cash against a liability (due to artists), never revenue, with a trial balance, a trust tie-out, a flow matrix decided by the account rules themselves, and exports built from integer cents.
+
 ## The agent
 
-The agreement reader runs a local model through Ollama (`gpt-oss:20b` here), so no contract text leaves the machine. `POST /api/agent/read` takes `mode`: `"saved"` (default) returns the stored answer, `"live"` asks the model. With `?stream=1` it streams the model's reasoning and answer as it writes; `/present` uses that.
+The agreement reader runs a local model through Ollama (`gpt-oss:20b` here), so no contract text leaves the machine. `POST /api/agent/read` takes `mode`: `"saved"` (default) returns the stored answer, `"live"` asks the model. With `?stream=1` it streams the model's reasoning and answer as it writes. The recorded demo uses saved answers and runs with no network.
 
 The model can only answer in a fixed JSON shape, and every number travels with the clause it came from. Then a verifier (`src/lib/agent/verify.ts`) checks the model rather than trusting it:
 
@@ -54,53 +71,63 @@ If a live read fails (Ollama down, too slow, bad output), it falls back to the s
 
 ## Design decisions
 
-- **Money is integer cents.** No floats anywhere.
-- **Cent-exact splits.** The artist's share of each installment is the share of the running total minus the share before it, so installments always add up to exactly the artist's share of the price (`artistShareOfPayment` in `src/lib/escrow/engine.ts`). Checked against 300 random sales in `src/lib/escrow/invariants.test.ts`, along with conservation: every cent received is in operating, trust, paid out, or refunded.
-- **The split is fixed when a sale closes**, so re-reading an agreement can't change a sale already in progress.
-- **The agent must quote.** See above. The highlights in the UI are the verified quotes, not the model's own claims.
+- **Money is integer cents.** No floats anywhere, including exports, which are built as exact decimal strings.
+- **Cent-exact splits.** The artist's share of each installment is the share of the running total minus the share before it, so installments always add up to exactly the artist's share of the price (`artistShareOfPayment` in `src/lib/escrow/engine.ts`).
+- **The split and the payout window are fixed when a sale closes**, so re-reading an agreement can't change a sale already in progress.
+- **The agent must quote.** The highlights in the UI are the verified quotes, not the model's own claims.
 - **One writer at a time.** Every state change goes through a single queue (`mutate` in `src/lib/store.ts`) and is written atomically.
+
+## Research
+
+`research/` holds the background this was built on: 24 topic notes (artist consignment law by state, gallery collapses, legal trust accounting, production ledgers, payment rails, Ramp's platform, bankruptcy priority, tax and royalties, and more), a domain brief, a catalog of 214 feature ideas, and the ranked build plans we worked from.
 
 ## Limits
 
-- The bank feed and payouts are simulated; there is no live Ramp sandbox connection yet.
+- The bank feed and payouts are simulated; there is no live Ramp sandbox connection yet. The ingest and paging code is real, but nothing polls Ramp.
+- The journal mirrors the balances and is checked against them on every reconcile; balances are not yet derived from it.
+- If a buyer cancels and the gallery's operating cash can't cover its part of the refund, the cancel is refused. There is no recorded shortfall or payment plan for the buyer yet.
 - The verifier checks that numbers are stated in the quoted clause, not that the clause means what the model says. A clause like "half of the amount above $10,000" would pass the 50% check; that's what the human review path is for.
 - One gallery, three artists, JSON file storage. Fine for a demo, not for production.
-- If a buyer cancels after the gallery has spent its commission, the refund takes the gallery's operating balance negative. That's what would really happen; we show it instead of hiding it.
 
 ## Checks
 
 ```bash
-npm run lint && npm run typecheck && npm test && npm run format:check && npm run build
+bash scripts/gate.sh --build   # lint, typecheck, tests, format check, production build
 ```
 
-## How the code is split
+CI runs the same script on every push.
 
-| Area                         | Owner lane | Paths                                               |
-| ---------------------------- | ---------- | --------------------------------------------------- |
-| Shared types, deps           | Backend    | `src/types.ts`, `package.json`, `package-lock.json` |
-| Agent (reads agreements)     | Backend    | `src/lib/agent/`                                    |
-| Escrow rules and ledger      | Backend    | `src/lib/escrow/`, `src/lib/money.ts`               |
-| Ramp bank feed               | Backend    | `src/lib/ramp/`                                     |
-| Store and seed               | Backend    | `src/lib/store.ts`, `src/lib/seed.ts`               |
-| API routes                   | Backend    | `src/app/api/`                                      |
-| Gallery dashboard            | Frontend   | `src/app/gallery/`                                  |
-| Artist portal and statements | Frontend   | `src/app/artist/`                                   |
-| Demo control panel           | Frontend   | `src/app/demo/`                                     |
-| Shared UI pieces             | Frontend   | `src/components/`                                   |
+## How the code is laid out
 
-If the frontend needs a new field or package, ask the backend lane instead of editing its files.
+| Area                          | Paths                                                     |
+| ----------------------------- | --------------------------------------------------------- |
+| Escrow rules                  | `src/lib/escrow/engine.ts`                                |
+| Journal and account rules     | `src/lib/escrow/journal.ts`                               |
+| Reconciliation                | `src/lib/escrow/reconcile.ts`                             |
+| Books (GL, exports)           | `src/lib/books.ts`                                        |
+| Bank feed ingest              | `src/lib/feed/ramp.ts`                                    |
+| Agent (reads agreements)      | `src/lib/agent/`                                          |
+| Store and seed                | `src/lib/store.ts`, `src/lib/seed.ts`                     |
+| API routes                    | `src/app/api/`                                            |
+| Presenter, gallery, artist UI | `src/app/present/`, `src/app/gallery/`, `src/app/artist/` |
+| Books, simulator, lab         | `src/app/books/`, `src/app/demo/`, `src/app/lab/`         |
+| Shared UI and story steps     | `src/components/`                                         |
 
 ## API
 
 All routes return the full `Snapshot` (see `src/types.ts`).
 
-| Route                    | Body                                     |
-| ------------------------ | ---------------------------------------- |
-| `GET /api/state`         |                                          |
-| `POST /api/demo/sale`    | `{ artworkId, buyerName, installments }` |
-| `POST /api/demo/payment` | `{ saleId, amountCents?, method? }`      |
-| `POST /api/demo/cancel`  | `{ saleId }`                             |
-| `POST /api/demo/reset`   |                                          |
-| `POST /api/agent/read`   | `{ agreementId }`                        |
+| Route                       | Body                                                     |
+| --------------------------- | -------------------------------------------------------- |
+| `GET /api/state`            | (pays any share past its deadline first)                 |
+| `POST /api/demo/sale`       | `{ artworkId, buyerName, installments }`                 |
+| `POST /api/demo/payment`    | `{ saleId, amountCents?, method?, rampTransactionId? }`  |
+| `POST /api/demo/cancel`     | `{ saleId }`                                             |
+| `POST /api/demo/insolvency` | `{ galleryId }`                                          |
+| `POST /api/demo/attempt`    | `{ saleId, kind: "rent" or "creditor" }`, always refused |
+| `POST /api/demo/advance`    | `{ days }`, 1 to 120                                     |
+| `POST /api/demo/redeliver`  | `{ galleryId }`, replays the latest bank transaction     |
+| `POST /api/demo/reset`      |                                                          |
+| `POST /api/agent/read`      | `{ agreementId, mode? }`                                 |
 
-Errors come back as `{ error }` with status 400.
+Errors come back as `{ error }` with status 400. One deliberate exception: `/api/demo/attempt` returns 200, because the refusal is the expected outcome and is recorded in the activity feed.
