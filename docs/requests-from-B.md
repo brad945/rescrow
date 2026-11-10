@@ -9,3 +9,4 @@ Lane B appends here (new fields, routes, packages, view functions); lane A check
   - `src/app/api/agent/read`: accepts `mode`, and `?stream=1` streams NDJSON (`thinking`, `token`, `done`). New routes `api/agent/extract` (lab, nothing saved) and `api/agent/warm` (loads the model).
   - Timeout is 60s, not 25s: a busy laptop took 42s once.
   - Tests: `src/lib/agent/*.test.ts`, plus `RESCROW_AGENT=fixture` in `routes.test.ts`. All 479 pass with your trust tests.
+  - Follow-up: `ollama.ts` now races every stream read against the timeout, because a stalled model sends nothing and an abort only surfaced on the next chunk (a fallback took 260 to 660 seconds on a swapping Mac). The default timeout is now 45s, read per call from `RESCROW_AGENT_TIMEOUT_MS`. `pickModel` gives up after 5s.

@@ -68,10 +68,26 @@ export function stepFor(s: Snapshot): Step {
           "The buyer walked away. Ines's share is refunded to them straight from the trust account. The gallery never had it, so it can't have spent it.",
       };
     }
+    const failed = agreement.terms.checks?.filter((c) => !c.ok) ?? [];
+    if (failed.length > 0) {
+      return {
+        index: 1,
+        title: "Agent read it, a person has to confirm",
+        caption: `The agent couldn't back everything with a quote (${failed.map((c) => c.label.toLowerCase()).join("; ")}), so Rescrow won't let money move on these terms. A person confirms by using the reviewed terms on file.`,
+        next: {
+          label: "Use the reviewed terms on file",
+          path: "/api/agent/read",
+          body: { agreementId: AGREEMENT, mode: "saved" },
+        },
+      };
+    }
     return {
       index: 1,
       title: "Agreement read",
-      caption: `The agent pulled ${agreement.terms.artistShareBps / 100}% to the artist and a ${agreement.terms.payoutDays} day payout window, and quoted the exact clauses it relied on. That split is now fixed for every sale of her work.`,
+      caption:
+        agreement.termsSource === "model"
+          ? `The agent pulled ${agreement.terms.artistShareBps / 100}% to the artist and a ${agreement.terms.payoutDays} day payout window, and quoted the exact clauses it relied on. That split is now fixed for every sale of her work.`
+          : `Using the reviewed terms on file: ${agreement.terms.artistShareBps / 100}% to the artist, paid within ${agreement.terms.payoutDays} days. The clauses they come from are highlighted. That split is now fixed for every sale of her work.`,
       next: {
         label: "Collector buys it",
         path: "/api/demo/sale",

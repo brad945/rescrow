@@ -4,7 +4,7 @@ Target length: 2:30. Hard cap 3:00.
 
 ## Before you record
 
-1. Make sure Ollama is running (`ollama serve`) and `gpt-oss:20b` is pulled. Then `npm run build && npm start` and open `http://localhost:3333/present` in Chrome. Leave it on the title card for 30 seconds; it loads the model in the background so the read on camera takes about 11 seconds instead of 20. Quit CapCut and other heavy apps first: with them running, one read took 42 seconds. Do one full dry run before recording.
+1. Make sure Ollama is running (`ollama serve`) and `gpt-oss:20b` is pulled. Then `npm run build && npm start` and open `http://localhost:3333/present` in Chrome. Leave it on the title card for 30 seconds; it loads the model in the background so the read on camera takes about 11 seconds instead of 20. The model needs about 13 GB of memory. Quit CapCut, extra browsers and any other dev servers first: with the Mac swapping, reads stalled for over a minute and fell back to the saved answer (the screen says so, and the demo keeps working, but you lose the live moment). Do one full dry run before recording. If the read ever takes more than about 15 seconds, cut the wait in editing.
 2. Press `R` to reset. You should see the title card with the Stephen Friedman quote.
 3. Browser zoom 125%, window 1440 x 900 or larger, hide bookmarks bar, turn on Do Not Disturb.
 4. Record at 1080p with clicks shown (QuickTime or Screen Studio).

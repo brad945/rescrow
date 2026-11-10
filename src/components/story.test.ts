@@ -79,4 +79,33 @@ describe("presenter story", () => {
       s.payouts.filter((p) => p.artistId === "art_ines").at(-1)!.amountCents,
     ).toBe(800_000);
   });
+
+  it("offers the reviewed terms when the live read fails a check, then moves on", () => {
+    let s = applyTerms(createSeed(), {
+      agreementId: "agr_ines",
+      terms: {
+        ...FIXTURE_TERMS.agr_ines,
+        checks: [{ label: "Payout deadline", ok: false, detail: "not set" }],
+      },
+      source: "model",
+    });
+    const stuck = stepFor(s);
+    expect(stuck.next!.label).toBe("Use the reviewed terms on file");
+    expect(stuck.next!.body).toEqual({
+      agreementId: "agr_ines",
+      mode: "saved",
+    });
+    s = advance(s); // the saved answer has no failed checks
+    expect(stepFor(s).next!.label).toBe("Collector buys it");
+  });
+
+  it("doesn't claim a live read when the terms came from the saved answer", () => {
+    const s = applyTerms(createSeed(), {
+      agreementId: "agr_ines",
+      terms: FIXTURE_TERMS.agr_ines,
+      source: "fixture",
+    });
+    expect(stepFor(s).caption).toMatch(/^Using the reviewed terms on file/);
+    expect(stepFor(s).caption).not.toMatch(/agent pulled/);
+  });
 });

@@ -48,6 +48,8 @@ export default function PresentPage() {
       );
       return;
     }
+    // Switching to the reviewed terms replaces the live run on screen.
+    if (step.next.path === "/api/agent/read") setRun(idleRun);
     void act(step.next.path, step.next.body);
   }, [step, busy, act, actStream, onIntro]);
   const reset = useCallback(() => {
