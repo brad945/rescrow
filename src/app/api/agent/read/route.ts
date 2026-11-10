@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { readAgreement } from "@/lib/agent";
+import { readAgreement, type StreamHandlers } from "@/lib/agent";
 import { errorResponse, parseBody } from "@/lib/api";
 import { applyTerms, EscrowError } from "@/lib/escrow/engine";
+import { ndjsonStream } from "@/lib/ndjson";
 import { load, mutate } from "@/lib/store";
 import type { ReadAgreementRequest } from "@/types";
 
@@ -10,24 +11,55 @@ const schema: z.ZodType<ReadAgreementRequest> = z.object({
   agreementId: z.string(),
 });
 
+async function run(agreementId: string, handlers: StreamHandlers = {}) {
+  const agreement = load().agreements.find((a) => a.id === agreementId);
+  if (!agreement) {
+    throw new EscrowError(`Agreement ${agreementId} not found`);
+  }
+  const result = await readAgreement(agreement, handlers);
+  // The model call can take a while; apply its result to the latest state,
+  // not the copy loaded before the call, so nothing done meanwhile is lost.
+  const { snapshot } = await mutate((current) => ({
+    snapshot: applyTerms(current, {
+      agreementId: agreement.id,
+      terms: result.terms,
+      source: result.source,
+    }),
+    result: null,
+  }));
+  return { snapshot, result };
+}
+
+/**
+ * POST { agreementId }. Add ?stream=1 to receive the model's output as it is
+ * written, as newline-delimited JSON: {type:"token"} events, then {type:"done"}.
+ */
 export async function POST(req: Request) {
+  let body: ReadAgreementRequest;
   try {
-    const body = await parseBody(req, schema);
-    const agreement = load().agreements.find((a) => a.id === body.agreementId);
-    if (!agreement) {
-      throw new EscrowError(`Agreement ${body.agreementId} not found`);
-    }
-    const { terms, source } = await readAgreement(agreement);
-    // The model call can take a while; apply its result to the latest state,
-    // not the copy loaded before the call, so nothing done meanwhile is lost.
-    const { snapshot } = await mutate((current) => ({
-      snapshot: applyTerms(current, {
-        agreementId: agreement.id,
-        terms,
-        source,
-      }),
-      result: null,
-    }));
+    body = await parseBody(req, schema);
+  } catch (err) {
+    return errorResponse(err);
+  }
+
+  if (new URL(req.url).searchParams.get("stream") === "1") {
+    return ndjsonStream(async (send) => {
+      const { snapshot, result } = await run(body.agreementId, {
+        onToken: (text) => send({ type: "token", text }),
+        onThinking: (text) => send({ type: "thinking", text }),
+      });
+      send({
+        type: "done",
+        snapshot,
+        source: result.source,
+        verified: result.verified,
+        fallbackReason: result.fallbackReason ?? null,
+      });
+    });
+  }
+
+  try {
+    const { snapshot } = await run(body.agreementId);
     return NextResponse.json(snapshot);
   } catch (err) {
     return errorResponse(err);

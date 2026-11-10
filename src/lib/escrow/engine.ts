@@ -62,6 +62,12 @@ export function termsFor(s: Snapshot, artistId: Id): AgreementTerms {
       `Agreement ${agreement.id} has not been read by the agent yet`,
     );
   }
+  const failed = agreement.terms.checks?.filter((c) => !c.ok) ?? [];
+  if (failed.length > 0) {
+    throw new EscrowError(
+      `Agreement ${agreement.id} needs a person to confirm: ${failed.map((c) => c.label.toLowerCase()).join("; ")}`,
+    );
+  }
   return agreement.terms;
 }
 

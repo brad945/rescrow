@@ -27,19 +27,42 @@ Demo data lives in `data/db.json` (gitignored), created from `src/lib/seed.ts` o
 - The gallery keeps its normal **Ramp Checking Account** for operating cash and opens a second Ramp Checking Account titled as artist trust. Ramp supports multiple checking accounts per business.
 - Ramp's Developer API exposes banking accounts and banking transactions but has no webhook for incoming deposits, so the production design polls `GET /developer/v1/banking/syncable-transactions` and matches deposits to open sales. In this build that feed is simulated (`/demo`).
 - Payouts to artists would go out through Ramp transfers from the trust account.
-- The agreement reader fits next to Ramp's contract-aware AP and procurement agents. Today it returns cached answers for the three seeded agreements; the local `gpt-oss` model call is in progress.
+- The agreement reader fits next to Ramp's contract-aware AP and procurement agents.
+
+## The agent
+
+The agreement reader runs `gpt-oss:20b` locally through Ollama, so no contract text leaves the machine. It streams its answer to the screen as it writes.
+
+The model can only answer in a fixed JSON shape, and every number travels with the clause it came from. Then a verifier (`src/lib/agent/verify.ts`) checks the model rather than trusting it:
+
+1. Each quote must appear word for word in the agreement (whitespace aside).
+2. The split quote must state the artist's percent, or the gallery's side of it ("commission of thirty-five percent" means 65% to the artist). Numbers written as digits, words, or fractions ("half", "divided equally") all count.
+3. The payout quote must state the number of days.
+
+If any check fails, the terms are marked for a person to confirm, and the escrow engine refuses to open a sale on them. Notes the model can't quote are dropped.
+
+Try it on any agreement at `/lab`. Two samples are built in: one that only states the gallery's commission, and a letter with no payout deadline, which gets flagged.
+
+| Setting         | Default                  |                                                                  |
+| --------------- | ------------------------ | ---------------------------------------------------------------- |
+| `RESCROW_AGENT` | live                     | `fixture` uses cached answers for the three demo agreements only |
+| `RESCROW_MODEL` | `gpt-oss:20b`            | any Ollama model with structured output                          |
+| `OLLAMA_URL`    | `http://localhost:11434` |                                                                  |
+
+If Ollama isn't reachable, the demo agreements fall back to cached answers and the UI says so.
 
 ## Design decisions
 
 - **Money is integer cents.** No floats anywhere.
 - **Cent-exact splits.** The artist's share of each installment is the share of the running total minus the share before it, so installments always add up to exactly the artist's share of the price (`artistShareOfPayment` in `src/lib/escrow/engine.ts`). Checked against 300 random sales in `src/lib/escrow/invariants.test.ts`, along with conservation: every cent received is in operating, trust, paid out, or refunded.
 - **The split is fixed when a sale closes**, so re-reading an agreement can't change a sale already in progress.
-- **The agent must quote.** Every extracted number carries citations that must appear word for word in the agreement; those are what the UI highlights.
+- **The agent must quote.** See above. The highlights in the UI are the verified quotes, not the model's own claims.
 - **One writer at a time.** Every state change goes through a single queue (`mutate` in `src/lib/store.ts`) and is written atomically.
 
 ## Limits
 
 - The bank feed and payouts are simulated; there is no live Ramp sandbox connection yet.
+- The verifier checks that numbers are stated in the quoted clause, not that the clause means what the model says. A clause like "half of the amount above $10,000" would pass the 50% check; that's what the human review path is for.
 - One gallery, three artists, JSON file storage. Fine for a demo, not for production.
 - If a buyer cancels after the gallery has spent its commission, the refund takes the gallery's operating balance negative. That's what would really happen; we show it instead of hiding it.
 

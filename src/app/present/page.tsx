@@ -1,9 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Snapshot } from "@/types";
 import { ARTIST, AGREEMENT, WORK, stepFor } from "@/components/story";
+import {
+  AgentPanel,
+  idleRun,
+  reduceRun,
+  type AgentRun,
+} from "@/components/AgentPanel";
 import { AgreementText } from "@/components/AgreementText";
 import { ArtworkImage } from "@/components/ArtworkImage";
 import { GalleryBalances, Ledger } from "@/components/GalleryAccount";
@@ -13,14 +19,41 @@ import { useTween } from "@/components/useTween";
 import { artistTotals, paidSoFar } from "@/lib/escrow/engine";
 
 export default function PresentPage() {
-  const { snapshot, error, busy, act } = useSnapshot();
+  const { snapshot, error, busy, act, actStream } = useSnapshot();
   const step = snapshot ? stepFor(snapshot) : null;
+  // The title card shows before step 1 and is purely local to this screen.
+  const [intro, setIntro] = useState(true);
+  const [run, setRun] = useState<AgentRun>(idleRun);
+  const onIntro = intro && step?.index === 0;
+
+  // Load the model while the title card is up, so the read on camera is fast.
+  useEffect(() => {
+    void fetch("/api/agent/warm", { method: "POST" }).catch((err) =>
+      console.error("warm failed", err),
+    );
+  }, []);
 
   const next = useCallback(() => {
-    if (step?.next && !busy) void act(step.next.path, step.next.body);
-  }, [step, busy, act]);
+    if (busy || !step) return;
+    if (onIntro) {
+      setIntro(false);
+      return;
+    }
+    if (!step.next) return;
+    if (step.index === 0) {
+      setRun({ ...idleRun, status: "running", startedAt: Date.now() });
+      void actStream(`${step.next.path}?stream=1`, step.next.body, (event) =>
+        setRun((r) => reduceRun(r, event)),
+      );
+      return;
+    }
+    void act(step.next.path, step.next.body);
+  }, [step, busy, act, actStream, onIntro]);
   const reset = useCallback(() => {
-    if (!busy) void act("/api/demo/reset");
+    if (busy) return;
+    setIntro(true);
+    setRun(idleRun);
+    void act("/api/demo/reset");
   }, [busy, act]);
   const cancel = useCallback(() => {
     const sale = snapshot?.sales.filter((x) => x.artworkId === WORK).at(-1);
@@ -85,118 +118,95 @@ export default function PresentPage() {
 
       <main className="grid flex-1 gap-6 p-6 lg:grid-cols-[1fr_380px]">
         <div className="min-w-0 space-y-4">
-          <section className="flex flex-wrap items-end justify-between gap-4">
-            <div className="max-w-2xl">
-              <p className="text-xs text-muted">
-                {step.index === 6
-                  ? "Alternate ending"
-                  : `Step ${step.index + 1} of 6`}
-              </p>
-              <h1 className="text-2xl font-semibold tracking-tight">
-                {step.title}
-              </h1>
-              <p className="mt-1 text-[15px] leading-relaxed text-ink/80">
-                {step.caption}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {step.canCancel && (
-                <button
-                  type="button"
-                  onClick={cancel}
-                  disabled={busy}
-                  className="rounded border border-line bg-card px-3 py-2 text-sm text-muted hover:text-danger disabled:opacity-40"
-                >
-                  Buyer cancels <kbd className="num text-faint">C</kbd>
-                </button>
-              )}
-              {step.next ? (
-                <button
-                  type="button"
-                  onClick={next}
-                  disabled={busy}
-                  className="rounded bg-ink px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  {busy && step.index === 0
-                    ? "Agent reading…"
-                    : step.next.label}{" "}
-                  <kbd className="num text-white/50">→</kbd>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={reset}
-                  disabled={busy}
-                  className="rounded border border-ink px-4 py-2 text-sm font-medium"
-                >
-                  Run it again
-                </button>
-              )}
-            </div>
-          </section>
-
-          {error && (
-            <p className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
-              {error}
-            </p>
-          )}
-
-          {showAgreement ? (
-            <div className="grid gap-4 xl:grid-cols-[1fr_260px]">
-              <div className="rounded-md border border-line bg-card p-5">
-                <p className="mb-3 text-xs text-muted">
-                  Consignment agreement, Lowline Gallery and Ines Duarte
-                </p>
-                <AgreementText
-                  text={agreement.text}
-                  citations={agreement.terms?.citations ?? []}
-                  active={!!agreement.terms}
-                />
-              </div>
-              <div className="rounded-md border border-line bg-card p-5 text-sm">
-                <p className="text-xs text-muted">What the agent extracted</p>
-                {agreement.terms ? (
-                  <dl className="mt-3 space-y-3">
-                    <div>
-                      <dt className="text-[11px] text-muted">Artist share</dt>
-                      <dd className="num text-2xl text-trust">
-                        {agreement.terms.artistShareBps / 100}%
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-[11px] text-muted">
-                        Pay artist within
-                      </dt>
-                      <dd className="num text-2xl">
-                        {agreement.terms.payoutDays} days
-                      </dd>
-                    </div>
-                    {agreement.terms.notes.map((n) => (
-                      <dd key={n} className="text-[13px] text-ink/80">
-                        {n}
-                      </dd>
-                    ))}
-                    <dd className="pt-2 text-[11px] text-faint">
-                      Every number is backed by a highlighted quote. If the
-                      agent can&apos;t quote it, Rescrow doesn&apos;t use it.
-                    </dd>
-                  </dl>
-                ) : (
-                  <p className="mt-3 text-muted">
-                    {busy ? "Reading…" : "Not read yet."}
-                  </p>
-                )}
-              </div>
-            </div>
+          {onIntro ? (
+            <Intro onStart={next} />
           ) : (
             <>
-              <GalleryBalances snapshot={snapshot} />
-              <section className="rounded-md border border-line bg-card">
-                <h2 className="border-b border-line px-4 py-3 text-sm font-semibold">
-                  Account activity
-                </h2>
-                <Ledger snapshot={snapshot} limit={6} />
+              <section className="flex flex-wrap items-end justify-between gap-4">
+                <div className="max-w-2xl">
+                  <p className="text-xs text-muted">
+                    {step.index === 6
+                      ? "Alternate ending"
+                      : `Step ${step.index + 1} of 6`}
+                  </p>
+                  <h1 className="text-2xl font-semibold tracking-tight">
+                    {step.title}
+                  </h1>
+                  <p className="mt-1 text-[15px] leading-relaxed text-ink/80">
+                    {step.caption}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {step.canCancel && (
+                    <button
+                      type="button"
+                      onClick={cancel}
+                      disabled={busy}
+                      className="rounded border border-line bg-card px-3 py-2 text-sm text-muted hover:text-danger disabled:opacity-40"
+                    >
+                      Buyer cancels <kbd className="num text-faint">C</kbd>
+                    </button>
+                  )}
+                  {step.next ? (
+                    <button
+                      type="button"
+                      onClick={next}
+                      disabled={busy}
+                      className="rounded bg-ink px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      {busy && step.index === 0
+                        ? "Agent reading…"
+                        : step.next.label}{" "}
+                      <kbd className="num text-white/50">→</kbd>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={reset}
+                      disabled={busy}
+                      className="rounded border border-ink px-4 py-2 text-sm font-medium"
+                    >
+                      Run it again
+                    </button>
+                  )}
+                </div>
               </section>
+
+              {error && (
+                <p className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+                  {error}
+                </p>
+              )}
+
+              {showAgreement ? (
+                <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
+                  <div className="rounded-md border border-line bg-card p-5">
+                    <p className="mb-3 text-xs text-muted">
+                      Consignment agreement, Lowline Gallery and Ines Duarte
+                    </p>
+                    <AgreementText
+                      text={agreement.text}
+                      citations={agreement.terms?.citations ?? []}
+                      active={!!agreement.terms}
+                    />
+                  </div>
+                  <AgentPanel
+                    run={run}
+                    terms={agreement.terms}
+                    source={agreement.termsSource}
+                  />
+                </div>
+              ) : (
+                <>
+                  <GalleryBalances snapshot={snapshot} />
+                  <section className="rounded-md border border-line bg-card">
+                    <h2 className="border-b border-line px-4 py-3 text-sm font-semibold">
+                      Account activity
+                    </h2>
+                    <Ledger snapshot={snapshot} limit={6} />
+                  </section>
+                </>
+              )}
             </>
           )}
         </div>
@@ -318,5 +328,32 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
         </div>
       </div>
     </aside>
+  );
+}
+
+function Intro({ onStart }: { onStart: () => void }) {
+  return (
+    <section className="flex min-h-[560px] flex-col justify-center gap-6 rounded-md border border-line bg-card px-10 py-12">
+      <p className="text-xs text-muted">The Art Newspaper, April 30, 2026</p>
+      <p className="font-doc max-w-2xl text-[28px] leading-snug">
+        In February, Stephen Friedman Gallery in London went into administration
+        owing Kehinde Wiley <span className="num text-danger">£163,849</span>.
+        Creditors expect about eight pence on the pound.
+      </p>
+      <p className="max-w-xl text-[15px] leading-relaxed text-ink/80">
+        In New York, an artist&apos;s share of a sale is legally trust money.
+        Nothing makes the gallery keep it apart from rent and payroll. Rescrow
+        does: the artist&apos;s share of every payment is held in trust the
+        moment the buyer pays, and released to the artist the day the sale is
+        paid in full.
+      </p>
+      <button
+        type="button"
+        onClick={onStart}
+        className="self-start rounded bg-ink px-4 py-2 text-sm font-medium text-white"
+      >
+        See it run <kbd className="num text-white/50">→</kbd>
+      </button>
+    </section>
   );
 }

@@ -4,10 +4,10 @@ Target length: 2:30. Hard cap 3:00.
 
 ## Before you record
 
-1. `npm run dev`, open `http://localhost:3333/present` in Chrome.
-2. Press `R` to reset. The screen should say "Step 1 of 6, A new consignment".
+1. Make sure Ollama is running (`ollama serve`) and `gpt-oss:20b` is pulled. Then `npm run build && npm start` and open `http://localhost:3333/present` in Chrome. Leave it on the title card for 30 seconds; it loads the model in the background so the read on camera takes about 10 seconds instead of 20.
+2. Press `R` to reset. You should see the title card with the Stephen Friedman quote.
 3. Browser zoom 125%, window 1440 x 900 or larger, hide bookmarks bar, turn on Do Not Disturb.
-4. Record at 1080p with clicks shown (QuickTime or Screen Studio). Turn off the Next.js dev badge by recording from `npm run build && npm start` instead of `npm run dev`.
+4. Record at 1080p with clicks shown (QuickTime or Screen Studio).
 5. Drive everything with the keyboard: `→` next step, `C` buyer cancels, `R` reset.
 6. Record the voice separately if the room is loud, then lay it over. Add captions; judges often watch muted.
 
@@ -15,19 +15,25 @@ Target length: 2:30. Hard cap 3:00.
 
 Every line below is said over the screen named next to it. Read it out loud once before recording and change any word that doesn't sound like you.
 
-### 0:00 to 0:15, the hook (title card or the present page at step 1)
+### 0:00 to 0:15, the hook (title card on screen)
 
 > In February, Stephen Friedman Gallery in London went into administration owing Kehinde Wiley a hundred and sixty three thousand pounds. Creditors expect about eight pence on the pound. That money was supposed to be his.
 
-### 0:15 to 0:35, the problem (present page, step 1, agreement on screen)
+### 0:15 to 0:35, the problem (press `→`, the agreement appears)
 
-> When a gallery sells a consigned painting, about half the price belongs to the artist. New York law already says that money is held in trust for the artist. But nothing makes the gallery keep it separate, so it lands in the same account as rent and payroll, and the artist waits months to be told what they're owed. If the gallery fails, the money is gone.
+> When a gallery sells a consigned painting, about half the price belongs to the artist. In New York that money is legally held in trust for the artist. But nothing makes the gallery keep it separate, so it lands in the same account as rent and payroll, and the artist waits months. If the gallery fails, it's gone.
 
-### 0:35 to 0:55, the agent (press `→`)
+### 0:35 to 1:00, the agent (press `→`, let it run)
 
-> Rescrow is escrow for galleries, built on Ramp. When an artist consigns work, our agent reads the consignment agreement. It pulls the split and the payout window, and it has to quote the exact clause for every number, highlighted here. If it can't quote it, we don't use it.
+> Rescrow is escrow for galleries, built on Ramp. First, our agent reads the consignment agreement. That's gpt-oss running locally on this laptop, so the contract never leaves the gallery. You're watching it write its answer.
 
-### 0:55 to 1:45, the money (press `→` four times, pausing on each)
+When the checks appear:
+
+> But we don't trust the model. Every number has to come with the exact clause it came from, and Rescrow checks that the clause is really in the contract and really states that number. These highlights are the verified quotes. If a number can't be traced, a person has to confirm it before any money moves.
+
+Cut the wait in editing if the read takes longer than about 10 seconds.
+
+### 1:00 to 1:45, the money (press `→` four times, pausing on each)
 
 `→` Collector buys it:
 
@@ -53,9 +59,9 @@ Optional. Cut this if you're over time.
 
 ### 2:00 to 2:20, how it works (cut to the code)
 
-Show `src/lib/escrow/engine.ts`, the `artistShareOfPayment` function, then `src/lib/escrow/invariants.test.ts` running.
+Show `src/lib/agent/verify.ts` for a few seconds, then `artistShareOfPayment` in `src/lib/escrow/engine.ts`, then the tests running.
 
-> The core is a small ledger engine. The artist's cut of each installment is rounded on the running total, so three payments of a third always add up to exactly the artist's share, to the cent. We check that against three hundred random sales on every commit, along with a rule that every dollar received ends up in exactly one place.
+> Two pieces do the real work. The verifier keeps the model honest, and the ledger engine keeps the money exact. The artist's cut of each installment is rounded on the running total, so three payments of a third always add up to exactly the artist's share, to the cent. We check that against three hundred random sales on every commit, along with a rule that every dollar received ends up in exactly one place.
 
 ### 2:20 to 2:35, why Ramp, and what's next (back to the gallery page)
 
@@ -68,3 +74,7 @@ Show `src/lib/escrow/engine.ts`, the `artistShareOfPayment` function, then `src/
 - Ramp lets a business open more than one Ramp Checking Account. The Developer API exposes banking accounts and banking transactions, read only, with no deposit webhook. docs.ramp.com
 
 Do not say galleries are closing at a record pace. The 2026 Art Basel and UBS report found more openings than closures.
+
+## If judges ask "is the AI real?"
+
+Open `/lab`, pick "No deadline", press Read with agent. It's a letter that splits proceeds "equally" but never sets a payout date. The agent reads it live, gets the 50% right, and the verifier flags the missing deadline for a person instead of guessing. Then paste any agreement they hand you.

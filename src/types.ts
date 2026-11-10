@@ -61,6 +61,15 @@ export interface AgreementTerms {
   unverifiedCitations?: string[];
   /** Local model that produced these terms on a live read. */
   model?: string;
+  /** How each number was checked against the agreement text. */
+  checks?: VerificationCheck[];
+}
+
+/** One check the verifier ran on the agent's output. */
+export interface VerificationCheck {
+  label: string;
+  ok: boolean;
+  detail: string;
 }
 
 export interface ConsignmentAgreement {

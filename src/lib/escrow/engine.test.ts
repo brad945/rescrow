@@ -144,6 +144,28 @@ describe("escrow engine", () => {
     expect(sale.artistId).toBe("art_ines");
   });
 
+  it("refuses to sell on terms the verifier could not confirm", () => {
+    const s1 = applyTerms(
+      createSeed(),
+      {
+        agreementId: "agr_ines",
+        terms: {
+          ...FIXTURE_TERMS.agr_ines,
+          checks: [{ label: "Payout deadline", ok: false, detail: "not set" }],
+        },
+        source: "model",
+      },
+      testClock(),
+    );
+    expect(() =>
+      createSale(
+        s1,
+        { artworkId: "wrk_orchard", buyerName: "J. Park", installments: 1 },
+        testClock(),
+      ),
+    ).toThrow(/needs a person to confirm: payout deadline/);
+  });
+
   it("does not mutate its input", () => {
     const seed = createSeed();
     const copy = structuredClone(seed);

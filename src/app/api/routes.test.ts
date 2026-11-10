@@ -15,9 +15,12 @@ let dir: string;
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "rescrow-api-"));
   process.env.RESCROW_DATA_DIR = dir;
+  // Route tests cover the HTTP layer; the live model has its own tests.
+  process.env.RESCROW_AGENT = "fixture";
 });
 afterEach(() => {
   delete process.env.RESCROW_DATA_DIR;
+  delete process.env.RESCROW_AGENT;
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

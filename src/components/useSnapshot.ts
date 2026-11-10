@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Snapshot } from "@/types";
+import { readNdjson } from "@/components/readNdjson";
 
 const POLL_MS = 1500;
 
@@ -77,11 +78,62 @@ export function useSnapshot() {
     [],
   );
 
+  /**
+   * Like act, but for routes that stream newline-delimited JSON events.
+   * Calls onEvent for each one and adopts the snapshot from the final event.
+   */
+  const actStream = useCallback(
+    async (
+      path: string,
+      body: unknown,
+      onEvent: (event: Record<string, unknown>) => void,
+    ): Promise<boolean> => {
+      if (acting.current) return false;
+      acting.current = true;
+      generation.current += 1;
+      setBusy(true);
+      setActionError(null);
+      try {
+        const res = await fetch(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body ?? {}),
+        });
+        if (!res.ok || !res.body) {
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setActionError(data.error ?? `Request failed (${res.status})`);
+          return false;
+        }
+        let ok = false;
+        await readNdjson(res, (event) => {
+          onEvent(event);
+          if (event.type === "error") setActionError(String(event.message));
+          if (event.type === "done") {
+            if (event.snapshot) setSnapshot(event.snapshot as Snapshot);
+            ok = true;
+          }
+        });
+        return ok;
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : String(err));
+        return false;
+      } finally {
+        generation.current += 1;
+        acting.current = false;
+        setBusy(false);
+      }
+    },
+    [],
+  );
+
   return {
     snapshot,
     error: actionError ?? pollError,
     busy,
     act,
+    actStream,
     clearError: () => setActionError(null),
   };
 }
