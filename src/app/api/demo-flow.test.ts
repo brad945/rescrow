@@ -222,6 +222,11 @@ describe("the recorded demo, end to end", () => {
       r.fromTrustCents + r.fromOperatingCents + r.coveredByGalleryCents,
     ).toBe(800_000);
     expect(r.coveredByGalleryCents).toBe(400_000);
+    // The caption must say what actually happened: not "refunded from trust".
+    const caption = stepFor(s).caption;
+    expect(caption).toMatch(/got every cent back/);
+    expect(caption).toMatch(/keeps the \$4,000\.00 she was already paid/);
+    expect(caption).not.toMatch(/refunded to them straight from the trust/);
     balanced(s);
   });
 

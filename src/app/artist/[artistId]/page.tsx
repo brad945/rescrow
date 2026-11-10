@@ -100,7 +100,9 @@ export default function ArtistPortal() {
                   <span className="num font-semibold">
                     {terms.payoutDays} days
                   </span>
-                  . Rescrow pays you the day the buyer finishes paying.
+                  . Rescrow pays you the day the buyer finishes paying, or on
+                  each payment&apos;s deadline if the buyer is still paying by
+                  then.
                 </p>
               </div>
             )}

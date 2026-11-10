@@ -75,11 +75,15 @@ export function stepFor(s: Snapshot): Step {
   }
   if (!sale || sale.status === "cancelled") {
     if (sale?.status === "cancelled") {
+      const r = s.refunds.find((x) => x.saleId === sale.id);
+      const covered = r?.coveredByGalleryCents ?? 0;
       return {
         index: 6,
         title: "Buyer cancelled",
         caption:
-          "The buyer walked away. Ines's share is refunded to them straight from the trust account. The gallery never had it, so it can't have spent it.",
+          covered > 0
+            ? `The buyer walked away and got every cent back. ${r!.fromTrustCents > 0 ? `${formatCents(r!.fromTrustCents)} still held for Ines came straight out of trust. ` : ""}Ines keeps the ${formatCents(covered)} she was already paid on her deadline; the gallery refunds that part from its own operating cash, not from trust.`
+            : "The buyer walked away. Ines's share is refunded to them straight from the trust account. The gallery never had it, so it can't have spent it.",
       };
     }
     const failed = agreement.terms.checks?.filter((c) => !c.ok) ?? [];
