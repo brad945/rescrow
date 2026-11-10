@@ -1,7 +1,8 @@
 import type { ActivityKind, Snapshot } from "@/types";
 import { stamp } from "@/components/ui";
 
-const LABEL: Record<ActivityKind, string> = {
+// Partial so new activity kinds from the backend fall back to "Event" instead of breaking the build.
+const LABEL: Partial<Record<ActivityKind, string>> = {
   sale_created: "Sale",
   payment_received: "Deposit",
   hold_locked: "Held",
@@ -37,7 +38,7 @@ export function ActivityFeed({
           <span
             className={`pt-px text-[11px] font-medium ${a.kind === "hold_locked" || a.kind === "payout_sent" ? "text-trust" : "text-muted"}`}
           >
-            {LABEL[a.kind]}
+            {LABEL[a.kind] ?? "Event"}
           </span>
           <div>
             <p className="leading-snug">{a.message}</p>
