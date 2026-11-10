@@ -423,7 +423,11 @@ export function flowMatrix(): FlowCell[] {
         };
         const trustRelease =
           code === "TRUST_TO_ARTIST" || code === "TRUST_TO_BUYER";
-        const r = rejections(funded, entry, { trustRelease });
+        // In the probe, sale "a1" belongs to artist "a1".
+        const r = rejections(funded, entry, {
+          trustRelease,
+          saleArtist: (id) => id,
+        });
         if (r.length === 0) ok.push(code);
         else if (!why) why = r[0];
       }

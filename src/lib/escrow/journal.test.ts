@@ -239,6 +239,38 @@ describe("journal: postTrustRelease() is narrow too", () => {
         ),
       /below its floor of \$0\.00/,
     ));
+  it("a buyer refund can't pay another artist", () =>
+    refused(
+      s,
+      () =>
+        postTrustRelease(
+          s,
+          e(
+            [
+              { account: ines, cents: -100 },
+              { account: acct.artist(G, "art_theo"), cents: 100 },
+            ],
+            "TRUST_TO_BUYER",
+          ),
+        ),
+      /TRUST_TO_BUYER may only pay buyer accounts/,
+    ));
+  it("a buyer refund can't go to the buyer of another artist's sale", () =>
+    refused(
+      s,
+      () =>
+        postTrustRelease(
+          s,
+          e(
+            [
+              { account: ines, cents: -100 },
+              { account: acct.buyer(G, "sale_lamps"), cents: 100 },
+            ],
+            "TRUST_TO_BUYER",
+          ),
+        ),
+      /trust only pays its own artist, or the buyers of that artist's sales/,
+    ));
   it("may only take money out of trust", () =>
     refused(
       s,

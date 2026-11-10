@@ -178,7 +178,11 @@ describe("books: the flow matrix comes from the journal's own rules", () => {
     flowMatrix().find((c) => c.from === from && c.to === to)!;
 
   it("trust can only reach the artist or the buyer", () => {
-    expect(cell("trust", "artist").allowed).toBe(true);
+    expect(cell("trust", "artist")).toMatchObject({
+      allowed: true,
+      detail: "TRUST_TO_ARTIST",
+    });
+    expect(cell("trust", "buyer").detail).toBe("TRUST_TO_BUYER");
     expect(cell("trust", "buyer").allowed).toBe(true);
     expect(cell("trust", "operating").allowed).toBe(false);
     expect(cell("trust", "creditors").allowed).toBe(false);

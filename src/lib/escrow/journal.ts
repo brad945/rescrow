@@ -125,7 +125,14 @@ export function entry(
 export function rejections(
   journal: JournalEntry[],
   e: JournalEntry,
-  { trustRelease }: { trustRelease: boolean },
+  {
+    trustRelease,
+    saleArtist,
+  }: {
+    trustRelease: boolean;
+    /** Whose sale a buyer account belongs to, for trust refunds. */
+    saleArtist?: (saleId: Id) => Id | undefined;
+  },
 ): string[] {
   const out: string[] = [];
   if (!KNOWN_CODES.includes(e.code)) out.push(`Unknown code ${e.code}`);
@@ -176,19 +183,37 @@ export function rejections(
       }
     }
   }
-  // Trust pays each artist exactly what came out of that artist's trust:
-  // per artist, the trust debit and the artist credit cancel out.
-  if (e.code === "TRUST_TO_ARTIST") {
+  // Each trust code has exactly one kind of destination, and money only goes
+  // back to its own artist: per artist, what leaves that artist's trust equals
+  // what reaches that artist (TRUST_TO_ARTIST) or the buyers of that artist's
+  // own sales (TRUST_TO_BUYER). A buyer account is mapped to its artist with
+  // saleArtist; without that map a trust refund is refused.
+  if (e.code === "TRUST_TO_ARTIST" || e.code === "TRUST_TO_BUYER") {
+    const dest: AccountKind = e.code === "TRUST_TO_ARTIST" ? "artist" : "buyer";
+    for (const c of credits) {
+      if (c.kind !== dest) {
+        out.push(`${e.code} may only pay ${dest} accounts, not ${c.p.account}`);
+      }
+    }
     const perArtist = new Map<string, Cents>();
+    const add = (k: string, cents: Cents) =>
+      perArtist.set(k, (perArtist.get(k) ?? 0) + cents);
     for (const x of parsed) {
-      if (x.kind !== "trust" && x.kind !== "artist") continue;
-      const k = `${x.gallery}:${x.party}`;
-      perArtist.set(k, (perArtist.get(k) ?? 0) + x.p.cents);
+      if (x.kind === "trust" || x.kind === "artist") {
+        add(`${x.gallery}:${x.party}`, x.p.cents);
+      } else if (x.kind === "buyer") {
+        const artist = x.party ? saleArtist?.(x.party) : undefined;
+        if (!artist) {
+          out.push(`Can't tell whose sale ${x.p.account} is`);
+          continue;
+        }
+        add(`${x.gallery}:${artist}`, x.p.cents);
+      }
     }
     for (const [k, rest] of perArtist) {
       if (rest !== 0) {
         out.push(
-          `Trust for ${k} and the payment to that artist differ by ${rest} cents: trust only pays its own artist`,
+          `Trust for ${k} and what it pays differ by ${rest} cents: trust only pays its own artist, or the buyers of that artist's sales`,
         );
       }
     }
@@ -227,7 +252,10 @@ function apply(
   trustRelease: boolean,
 ): void {
   if (!e) return;
-  const why = rejections(s.journal, e, { trustRelease });
+  const why = rejections(s.journal, e, {
+    trustRelease,
+    saleArtist: (id) => s.sales.find((x) => x.id === id)?.artistId,
+  });
   if (why.length > 0) {
     throw new LedgerRejected(`Ledger refused ${e.code}: ${why.join("; ")}`);
   }
