@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { Snapshot } from "@/types";
-import { ARTIST, AGREEMENT, WORK, stepFor } from "@/components/story";
+import { ARTIST, AGREEMENT, GALLERY, WORK, stepFor } from "@/components/story";
 import {
   AgentPanel,
   idleRun,
@@ -13,7 +13,7 @@ import {
 import { AgreementText } from "@/components/AgreementText";
 import { ArtworkImage } from "@/components/ArtworkImage";
 import { GalleryBalances, Ledger } from "@/components/GalleryAccount";
-import { Money, stamp } from "@/components/ui";
+import { Money, shortDate, stamp } from "@/components/ui";
 import { useSnapshot } from "@/components/useSnapshot";
 import { useTween } from "@/components/useTween";
 import { artistTotals, paidSoFar } from "@/lib/escrow/engine";
@@ -60,6 +60,10 @@ export default function PresentPage() {
     if (step?.canCancel && sale && !busy)
       void act("/api/demo/cancel", { saleId: sale.id });
   }, [snapshot, step, busy, act]);
+  const fail = useCallback(() => {
+    if (step?.canFail && !busy)
+      void act("/api/demo/insolvency", { galleryId: GALLERY });
+  }, [step, busy, act]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -71,11 +75,13 @@ export default function PresentPage() {
         reset();
       } else if (e.key === "c" || e.key === "C") {
         cancel();
+      } else if (e.key === "i" || e.key === "I") {
+        fail();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, reset, cancel]);
+  }, [next, reset, cancel, fail]);
 
   if (!snapshot || !step) {
     return (
@@ -97,7 +103,7 @@ export default function PresentPage() {
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <li
               key={i}
-              className={`h-1 w-6 rounded-sm ${i <= step.index && step.index !== 6 ? "bg-ink" : step.index === 6 && i <= 3 ? "bg-faint" : "bg-line"}`}
+              className={`h-1 w-6 rounded-sm ${step.index >= 6 ? (i <= 3 ? "bg-faint" : "bg-line") : i <= step.index ? "bg-ink" : "bg-line"}`}
             />
           ))}
         </ol>
@@ -125,7 +131,7 @@ export default function PresentPage() {
               <section className="flex flex-wrap items-end justify-between gap-4">
                 <div className="max-w-2xl">
                   <p className="text-xs text-muted">
-                    {step.index === 6
+                    {step.index >= 6
                       ? "Alternate ending"
                       : `Step ${step.index + 1} of 6`}
                   </p>
@@ -137,6 +143,16 @@ export default function PresentPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {step.canFail && (
+                    <button
+                      type="button"
+                      onClick={fail}
+                      disabled={busy}
+                      className="rounded border border-line bg-card px-3 py-2 text-sm text-muted hover:text-danger disabled:opacity-40"
+                    >
+                      Gallery goes under <kbd className="num text-faint">I</kbd>
+                    </button>
+                  )}
                   {step.canCancel && (
                     <button
                       type="button"
@@ -232,6 +248,18 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
   const feed = snapshot.activity
     .filter((a) => a.artistId === ARTIST)
     .slice(0, 4);
+  const gallery = snapshot.galleries[0];
+  const failed = gallery.status === "insolvent";
+  const dueBy = snapshot.holds
+    .filter((h) => h.artistId === ARTIST && h.status === "locked" && h.dueBy)
+    .map((h) => h.dueBy!)
+    .sort()[0];
+  const showPayout =
+    payout &&
+    (sale?.status === "paid" ||
+      (failed &&
+        !!gallery.insolventAt &&
+        payout.paidAt >= gallery.insolventAt));
 
   return (
     <aside className="mx-auto w-full max-w-[380px]">
@@ -254,6 +282,15 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
               <p className="mt-1 text-[11px] leading-snug text-white/70">
                 In trust at Lowline Gallery. Not the gallery&apos;s money, even
                 if it closes.
+                {dueBy && (
+                  <>
+                    {" "}
+                    Your agreement says you&apos;re paid by {shortDate(
+                      dueBy,
+                    )}{" "}
+                    at the latest.
+                  </>
+                )}
               </p>
             </div>
 
@@ -294,7 +331,14 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
               </div>
             </div>
 
-            {payout && sale?.status === "paid" && (
+            {failed && (
+              <p className="slide-in rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-[12px] text-danger">
+                Lowline Gallery has entered insolvency. Your share was held in
+                trust, so it was paid to you, not to creditors.
+              </p>
+            )}
+
+            {showPayout && payout && (
               <Link
                 href={`/artist/${ARTIST}/statements/${payout.id}`}
                 className="slide-in block rounded-xl border border-trust/30 bg-trust-soft px-4 py-3 text-[13px] text-trust"

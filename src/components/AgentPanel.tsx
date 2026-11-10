@@ -95,7 +95,7 @@ export function AgentPanel({
           {run.status === "running"
             ? `gpt-oss-20b on this laptop · ${run.output ? `${run.tokens} tokens` : "reasoning"} · ${elapsed.toFixed(1)}s`
             : shownSource === "model"
-              ? `gpt-oss-20b, local${run.finishedAt ? ` · ${elapsed.toFixed(1)}s` : ""}`
+              ? `${terms?.model ?? "gpt-oss-20b"}, local${run.finishedAt ? ` · ${elapsed.toFixed(1)}s` : ""}`
               : shownSource === "fixture"
                 ? "cached answer"
                 : "waiting"}
@@ -156,6 +156,20 @@ export function AgentPanel({
               ))}
             </ul>
           )}
+
+          {terms.unverifiedCitations &&
+            terms.unverifiedCitations.length > 0 && (
+              <div className="border-t border-line pt-3">
+                <p className="text-[11px] text-danger">
+                  Quoted by the agent but not in the agreement
+                </p>
+                <ul className="mt-1 space-y-1 text-[12px] text-danger/80 line-through">
+                  {terms.unverifiedCitations.map((q) => (
+                    <li key={q}>&ldquo;{q}&rdquo;</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
           {terms.notes.length > 0 && (
             <div className="border-t border-line pt-3">

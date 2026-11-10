@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyTerms,
   cancelSale,
+  declareInsolvency,
   createSale,
   receivePayment,
 } from "@/lib/escrow/engine";
@@ -59,5 +60,17 @@ describe("presenter story", () => {
     expect(stepFor(s).next!.label).toBe("Wire for $8,000.00 arrives");
     s = advance(advance(s));
     expect(stepFor(s).next!.label).toBe("Final $8,000.00 wire arrives");
+  });
+
+  it("ends on the insolvency beat with Ines paid from trust", () => {
+    let s = createSeed();
+    for (let i = 0; i < 4; i++) s = advance(s); // read, sell, two payments
+    expect(stepFor(s).canFail).toBe(true);
+    s = declareInsolvency(s, { galleryId: "gal_lowline" }).snapshot;
+    const step = stepFor(s);
+    expect(step.index).toBe(7);
+    expect(step.next).toBeUndefined();
+    // Two payments of $8,000 at 50%: $8,000 was in trust for Ines.
+    expect(step.caption).toContain("The $8,000.00 held in trust for Ines");
   });
 });

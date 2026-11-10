@@ -40,12 +40,16 @@ export function ledgerFor(s: Snapshot, galleryId: Id): LedgerRow[] {
     });
   }
 
+  const failedAt = s.galleries.find((g) => g.id === galleryId)?.insolventAt;
   for (const po of s.payouts.filter((x) => x.galleryId === galleryId)) {
     rows.push({
       id: po.id,
       at: po.paidAt,
       kind: "payout",
-      description: "Same day payout from artist trust",
+      description:
+        failedAt && po.paidAt >= failedAt
+          ? "Paid out of trust, gallery insolvent"
+          : "Same day payout from artist trust",
       counterparty: artistName(po.artistId),
       amountCents: -po.amountCents,
       trustCents: -po.amountCents,

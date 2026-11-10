@@ -16,12 +16,34 @@ export type Step = {
   caption: string;
   next?: { label: string; path: string; body: unknown };
   canCancel?: boolean;
+  /** The gallery can be made to fail (beat 6) once money is in trust. */
+  canFail?: boolean;
 };
+
+export const GALLERY = "gal_lowline";
 
 export function stepFor(s: Snapshot): Step {
   const agreement = s.agreements.find((a) => a.id === AGREEMENT);
   const sale = s.sales.filter((x) => x.artworkId === WORK).at(-1);
   const payments = sale ? s.payments.filter((p) => p.saleId === sale.id) : [];
+
+  const gallery = s.galleries.find((g) => g.id === GALLERY);
+  if (gallery?.status === "insolvent") {
+    const claimed = gallery.claimedByCreditorsCents ?? 0;
+    const toInes = s.payouts
+      .filter(
+        (p) =>
+          p.artistId === ARTIST &&
+          !!gallery.insolventAt &&
+          p.paidAt >= gallery.insolventAt,
+      )
+      .reduce((t, p) => t + p.amountCents, 0);
+    return {
+      index: 7,
+      title: "The gallery went under",
+      caption: `Lowline failed. Creditors took the ${formatCents(claimed)} in its operating account. The ${formatCents(toInes)} held in trust for Ines went to Ines, not to them. Without Rescrow she would be one more unsecured creditor, waiting for pennies on the pound.`,
+    };
+  }
 
   if (!agreement?.terms) {
     return {
@@ -32,7 +54,7 @@ export function stepFor(s: Snapshot): Step {
       next: {
         label: "Read the agreement",
         path: "/api/agent/read",
-        body: { agreementId: AGREEMENT },
+        body: { agreementId: AGREEMENT, mode: "live" },
       },
     };
   }
@@ -87,5 +109,6 @@ export function stepFor(s: Snapshot): Step {
       body: { saleId: sale.id, method: METHODS[n] ?? "wire" },
     },
     canCancel: n > 0,
+    canFail: n > 0,
   };
 }

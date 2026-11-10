@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Snapshot } from "@/types";
 import { galleryTotals } from "@/lib/escrow/engine";
+import { reconcile } from "@/lib/escrow/reconcile";
 import { ledgerFor } from "@/components/ledger";
 import { Money, ref, stamp } from "@/components/ui";
 import { useTween } from "@/components/useTween";
@@ -20,40 +21,72 @@ export function GalleryBalances({ snapshot }: { snapshot: Snapshot }) {
         .reduce((t, h) => t + h.amountCents, 0),
     }))
     .filter((x) => x.cents > 0);
+  const books = reconcile(snapshot, gallery.id);
+  const insolvent = gallery.status === "insolvent";
 
   return (
-    <div className="grid overflow-hidden rounded-md border border-line bg-card sm:grid-cols-2">
-      <div className="p-4">
-        <p className="text-xs text-muted">Operating, Ramp Checking ··4417</p>
-        <Money
-          cents={operating}
-          className="mt-1 block text-[28px] font-medium"
-        />
-        <p className="mt-1 text-xs text-muted">
-          What the gallery can spend on rent, payroll, and shows.
-        </p>
-      </div>
-      <div className="border-t border-line bg-trust-soft/60 p-4 sm:border-t-0 sm:border-l">
-        <p className="text-xs text-trust">Artist trust, Ramp Checking ··4425</p>
-        <Money
-          cents={trust}
-          className="mt-1 block text-[28px] font-medium text-trust"
-        />
-        {byArtist.length === 0 ? (
-          <p className="mt-1 text-xs text-trust/80">
-            Nothing held right now. Every artist is paid up.
+    <div className="overflow-hidden rounded-md border border-line bg-card">
+      <div className="grid sm:grid-cols-2">
+        <div className="p-4">
+          <p className={`text-xs ${insolvent ? "text-danger" : "text-muted"}`}>
+            Operating, Ramp Checking ··4417
+            {insolvent ? ", frozen by the administrator" : ""}
           </p>
-        ) : (
-          <ul className="mt-1 space-y-0.5 text-xs text-trust/90">
-            {byArtist.map(({ artist, cents }) => (
-              <li key={artist.id} className="flex justify-between gap-4">
-                <span>{artist.name}</span>
-                <Money cents={cents} />
-              </li>
-            ))}
-          </ul>
-        )}
+          <Money
+            cents={operating}
+            className={`mt-1 block text-[28px] font-medium ${insolvent ? "text-faint line-through" : ""}`}
+          />
+          <p
+            className={`mt-1 text-xs ${insolvent ? "text-danger" : "text-muted"}`}
+          >
+            {insolvent ? (
+              <>
+                Gallery insolvent. Creditors claimed{" "}
+                <Money cents={gallery.claimedByCreditorsCents ?? 0} />.
+              </>
+            ) : (
+              "What the gallery can spend on rent, payroll, and shows."
+            )}
+          </p>
+        </div>
+        <div className="border-t border-line bg-trust-soft/60 p-4 sm:border-t-0 sm:border-l">
+          <p className="text-xs text-trust">
+            Artist trust, Ramp Checking ··4425
+          </p>
+          <Money
+            cents={trust}
+            className="mt-1 block text-[28px] font-medium text-trust"
+          />
+          {byArtist.length === 0 ? (
+            <p className="mt-1 text-xs text-trust/80">
+              Nothing held right now. Every artist is paid up.
+            </p>
+          ) : (
+            <ul className="mt-1 space-y-0.5 text-xs text-trust/90">
+              {byArtist.map(({ artist, cents }) => (
+                <li key={artist.id} className="flex justify-between gap-4">
+                  <span>{artist.name}</span>
+                  <Money cents={cents} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
+      <p
+        className={`border-t border-line px-4 py-2 text-[11px] ${books.balanced ? "text-muted" : "text-danger"}`}
+        title="Opening balance plus everything received equals operating plus trust plus paid to artists plus refunded plus claimed by creditors."
+      >
+        {books.balanced ? (
+          <>
+            <span className="text-trust">✓</span> Books balance to the cent:
+            every dollar received is in operating, in trust, paid to an artist,
+            refunded, or claimed.
+          </>
+        ) : (
+          <>Books do not balance: {books.breaks.join("; ")}</>
+        )}
+      </p>
     </div>
   );
 }

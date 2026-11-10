@@ -36,6 +36,10 @@ export default function ArtistPortal() {
   const lockedHolds = snapshot.holds.filter(
     (h) => h.artistId === artist.id && h.status === "locked",
   );
+  const dueBy = lockedHolds
+    .map((h) => h.dueBy)
+    .filter((d): d is string => !!d)
+    .sort()[0];
 
   return (
     <>
@@ -67,7 +71,11 @@ export default function ArtistPortal() {
             </p>
             {lockedHolds.length > 0 && (
               <p className="mt-3 text-xs text-trust/80">
-                Paid to you automatically the day the buyer finishes paying.
+                Paid to you automatically the day the buyer finishes paying
+                {dueBy
+                  ? `, and by ${shortDate(dueBy)} at the latest under your agreement`
+                  : ""}
+                .
               </p>
             )}
           </div>
