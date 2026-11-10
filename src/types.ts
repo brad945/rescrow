@@ -98,6 +98,8 @@ export interface Sale {
   installments: number;
   /** Artist share fixed from the agreement when the sale closed (basis points). */
   artistShareBps: number;
+  /** Payout window fixed from the agreement when the sale closed, so a later re-read can't move or block this sale's deadlines. */
+  payoutDays?: number;
   status: SaleStatus;
   createdAt: Timestamp;
 }

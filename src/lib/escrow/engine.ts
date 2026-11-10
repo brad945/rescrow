@@ -208,6 +208,7 @@ export function createSale(
     priceCents: artwork.priceCents,
     installments: args.installments,
     artistShareBps: terms.artistShareBps,
+    payoutDays: terms.payoutDays,
     status: "open",
     createdAt: clock.now(),
   };
@@ -283,7 +284,10 @@ export function receivePayment(
     status: "locked",
     lockedAt: at,
     releasedAt: null,
-    dueBy: addDays(at, termsFor(s, sale.artistId).payoutDays),
+    dueBy: addDays(
+      at,
+      sale.payoutDays ?? termsFor(s, sale.artistId).payoutDays,
+    ),
   };
   s.holds.push(hold);
 

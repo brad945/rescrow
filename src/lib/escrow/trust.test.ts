@@ -203,3 +203,25 @@ describe("reconciliation", () => {
     expect(r.breaks.join(" ")).toMatch(/operating/i);
   });
 });
+
+describe("terms frozen at sale close", () => {
+  it("a mid-sale re-read with a shorter window does not move this sale's deadlines", () => {
+    const clock = clockAt("2026-11-10T15:00:00.000Z");
+    const { s: mid, saleId } = midSale(clock);
+    const reread = applyTerms(
+      mid,
+      {
+        agreementId: "agr_ines",
+        terms: { ...FIXTURE_TERMS.agr_ines!, payoutDays: 10 },
+        source: "fixture",
+      },
+      clock,
+    );
+    const after = receivePayment(reread, { saleId }, clock).snapshot;
+    const holds = after.holds.filter((h) => h.saleId === saleId);
+    expect(holds).toHaveLength(3);
+    for (const h of holds) expect(h.dueBy).toBe("2027-01-09T15:00:00.000Z");
+    expect(after.sales.find((x) => x.id === saleId)!.payoutDays).toBe(60);
+    expectBalanced(after);
+  });
+});
