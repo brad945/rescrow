@@ -51,6 +51,12 @@ Optional. Cut this if you're over time.
 
 > And if the buyer cancels halfway, the artist's share goes back to the buyer straight from trust. The gallery never had it, so it can't have spent it.
 
+### 1:45 to 2:05, the gallery goes under (press `R`, `→` four times, then `B`)
+
+Use this instead of the cancel beat if you're short on time. It pays off the hook.
+
+> Now the worst case. Lowline Gallery goes under. Creditors take every dollar in operating, the same way Stephen Friedman's did. But Ines's share was never the gallery's. Rescrow pays it out of trust straight to her. Same failure. This time the artist gets paid. And the books still balance to the cent.
+
 ### 2:00 to 2:20, how it works (cut to the code)
 
 Show `src/lib/escrow/engine.ts`, the `artistShareOfPayment` function, then `src/lib/escrow/invariants.test.ts` running.

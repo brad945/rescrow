@@ -16,12 +16,24 @@ export type Step = {
   caption: string;
   next?: { label: string; path: string; body: unknown };
   canCancel?: boolean;
+  /** The gallery can be made to fail (key B) once money is in trust. */
+  canFail?: boolean;
 };
 
 export function stepFor(s: Snapshot): Step {
   const agreement = s.agreements.find((a) => a.id === AGREEMENT);
   const sale = s.sales.filter((x) => x.artworkId === WORK).at(-1);
   const payments = sale ? s.payments.filter((p) => p.saleId === sale.id) : [];
+  const gallery = s.galleries.find((g) => g.id === "gal_lowline");
+
+  if (gallery?.status === "insolvent") {
+    const claimed = formatCents(gallery.claimedByCreditorsCents ?? 0);
+    return {
+      index: 7,
+      title: "The gallery went under. Ines still got paid",
+      caption: `Lowline Gallery is insolvent. Creditors took the ${claimed} in operating cash, the same way Stephen Friedman's creditors did. But Ines's share was never the gallery's: Rescrow paid it out of trust straight to her. Same failure. This time the artist gets paid.`,
+    };
+  }
 
   if (!agreement?.terms) {
     return {
@@ -87,5 +99,6 @@ export function stepFor(s: Snapshot): Step {
       body: { saleId: sale.id, method: METHODS[n] ?? "wire" },
     },
     canCancel: n > 0,
+    canFail: n > 0,
   };
 }

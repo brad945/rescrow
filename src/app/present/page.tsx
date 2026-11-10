@@ -7,6 +7,7 @@ import { ARTIST, AGREEMENT, WORK, stepFor } from "@/components/story";
 import { AgreementText } from "@/components/AgreementText";
 import { ArtworkImage } from "@/components/ArtworkImage";
 import { GalleryBalances, Ledger } from "@/components/GalleryAccount";
+import { TrustProof } from "@/components/TrustProof";
 import { Money, stamp } from "@/components/ui";
 import { useSnapshot } from "@/components/useSnapshot";
 import { useTween } from "@/components/useTween";
@@ -28,6 +29,11 @@ export default function PresentPage() {
       void act("/api/demo/cancel", { saleId: sale.id });
   }, [snapshot, step, busy, act]);
 
+  const fail = useCallback(() => {
+    if (step?.canFail && !busy)
+      void act("/api/demo/insolvency", { galleryId: "gal_lowline" });
+  }, [step, busy, act]);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -38,11 +44,13 @@ export default function PresentPage() {
         reset();
       } else if (e.key === "c" || e.key === "C") {
         cancel();
+      } else if (e.key === "b" || e.key === "B") {
+        fail();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, reset, cancel]);
+  }, [next, reset, cancel, fail]);
 
   if (!snapshot || !step) {
     return (
@@ -64,7 +72,7 @@ export default function PresentPage() {
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <li
               key={i}
-              className={`h-1 w-6 rounded-sm ${i <= step.index && step.index !== 6 ? "bg-ink" : step.index === 6 && i <= 3 ? "bg-faint" : "bg-line"}`}
+              className={`h-1 w-6 rounded-sm ${i <= step.index && step.index < 6 ? "bg-ink" : step.index >= 6 && i <= 3 ? "bg-faint" : "bg-line"}`}
             />
           ))}
         </ol>
@@ -88,7 +96,7 @@ export default function PresentPage() {
           <section className="flex flex-wrap items-end justify-between gap-4">
             <div className="max-w-2xl">
               <p className="text-xs text-muted">
-                {step.index === 6
+                {step.index >= 6
                   ? "Alternate ending"
                   : `Step ${step.index + 1} of 6`}
               </p>
@@ -100,6 +108,16 @@ export default function PresentPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {step.canFail && (
+                <button
+                  type="button"
+                  onClick={fail}
+                  disabled={busy}
+                  className="rounded border border-line bg-card px-3 py-2 text-sm text-muted hover:text-danger disabled:opacity-40"
+                >
+                  Gallery goes under <kbd className="num text-faint">B</kbd>
+                </button>
+              )}
               {step.canCancel && (
                 <button
                   type="button"
@@ -190,6 +208,7 @@ export default function PresentPage() {
             </div>
           ) : (
             <>
+              <TrustProof snapshot={snapshot} />
               <GalleryBalances snapshot={snapshot} />
               <section className="rounded-md border border-line bg-card">
                 <h2 className="border-b border-line px-4 py-3 text-sm font-semibold">
@@ -219,6 +238,12 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
     : 0;
   const received = sale ? paidSoFar(snapshot, sale.id) : 0;
   const payout = snapshot.payouts.filter((p) => p.artistId === ARTIST).at(-1);
+  const insolvent = snapshot.galleries.some((g) => g.status === "insolvent");
+  // Earliest date the agreement lets the gallery hold any of Ines's share.
+  const dueBy = snapshot.holds
+    .filter((h) => h.artistId === ARTIST && h.status === "locked" && h.dueBy)
+    .map((h) => h.dueBy!)
+    .sort()[0];
   const feed = snapshot.activity
     .filter((a) => a.artistId === ARTIST)
     .slice(0, 4);
@@ -245,6 +270,17 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
                 In trust at Lowline Gallery. Not the gallery&apos;s money, even
                 if it closes.
               </p>
+              {dueBy && (
+                <p className="num mt-1 text-[11px] text-white">
+                  Paid to you by{" "}
+                  {new Date(dueBy).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}{" "}
+                  at the latest, per your agreement
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-between rounded-xl bg-card px-4 py-3">
@@ -284,7 +320,7 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
               </div>
             </div>
 
-            {payout && sale?.status === "paid" && (
+            {payout && (sale?.status === "paid" || insolvent) && (
               <Link
                 href={`/artist/${ARTIST}/statements/${payout.id}`}
                 className="slide-in block rounded-xl border border-trust/30 bg-trust-soft px-4 py-3 text-[13px] text-trust"
