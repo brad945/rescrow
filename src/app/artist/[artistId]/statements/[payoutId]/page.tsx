@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArtistAccountLine } from "@/components/ArtistAccountLine";
+import { artistPayments } from "@/lib/artist";
 import { Money, shortDate } from "@/components/ui";
 import { useSnapshot } from "@/components/useSnapshot";
 import { methodLabel } from "@/lib/money";
@@ -40,6 +41,10 @@ export default function StatementPage() {
     index: salePayments.findIndex((p) => p.id === h.paymentId) + 1,
     payment: salePayments.find((p) => p.id === h.paymentId),
   }));
+  // When and why each share was paid, from the recorded reason and dates.
+  const timeline = new Map(
+    artistPayments(snapshot, payout.artistId).map((r) => [r.holdId, r.summary]),
+  );
   // The split frozen on the sale, not whatever the agreement says today.
   const share = sale ? sale.artistShareBps / 100 : null;
 
@@ -125,6 +130,16 @@ export default function StatementPage() {
                       <Money cents={payment.amountCents} />)
                     </span>
                   )}
+                  {payment?.rampTransactionId && (
+                    <span className="num block text-[10px] text-faint">
+                      bank id {payment.rampTransactionId}
+                    </span>
+                  )}
+                  {timeline.get(hold.id) && (
+                    <span className="block text-[11px] text-muted">
+                      {timeline.get(hold.id)}
+                    </span>
+                  )}
                 </td>
                 <td className="py-2">
                   {payment ? shortDate(payment.receivedAt) : ""}
@@ -153,7 +168,7 @@ export default function StatementPage() {
           account at Ramp the moment the buyer&apos;s payment arrived, and
           released to you{" "}
           {payout.reason === "deadline"
-            ? "on the payout deadline in your agreement, while the buyer was still paying"
+            ? "on its payout deadline in your agreement, while the buyer was still paying"
             : payout.reason === "insolvency"
               ? `when ${gallery?.name} became insolvent: trust money is not part of the gallery's estate, so it went to you, not to creditors`
               : "the day the sale was paid in full"}

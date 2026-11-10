@@ -8,7 +8,8 @@ import { ArtistAccountLine } from "@/components/ArtistAccountLine";
 import { Card, Money, Pill, shortDate, Swatch } from "@/components/ui";
 import { useSnapshot } from "@/components/useSnapshot";
 import { artistTotals, paidSoFar } from "@/lib/escrow/engine";
-import { formatCents, shareOf } from "@/lib/money";
+import { artistPayments, paymentScorecard } from "@/lib/artist";
+import { formatCents, methodLabel, shareOf } from "@/lib/money";
 
 export default function ArtistPortal() {
   const { artistId } = useParams<{ artistId: string }>();
@@ -161,6 +162,35 @@ export default function ArtistPortal() {
           </Card>
 
           <div className="space-y-6">
+            <Card title="Buyer payments">
+              <p className="mb-2 text-xs text-trust">
+                {paymentScorecard(snapshot, artist.id).line}
+              </p>
+              <ul className="space-y-2.5">
+                {artistPayments(snapshot, artist.id).map((r) => (
+                  <li
+                    key={`${r.saleId}_${r.installment}`}
+                    className="text-[12px]"
+                  >
+                    <div className="flex justify-between gap-2">
+                      <span>
+                        {r.workTitle}, {r.installment} of {r.installments}
+                      </span>
+                      <span>
+                        your share <Money cents={r.shareCents} />
+                      </span>
+                    </div>
+                    <p className="num text-[10px] text-faint">
+                      {methodLabel(r.method)} <Money cents={r.amountCents} />,{" "}
+                      {shortDate(r.receivedAt)}
+                      {r.rampTransactionId &&
+                        ` · bank id ${r.rampTransactionId}`}
+                    </p>
+                    <p className="text-[11px] text-muted">{r.summary}</p>
+                  </li>
+                ))}
+              </ul>
+            </Card>
             <Card title="Payouts">
               {payouts.length === 0 ? (
                 <p className="text-sm text-muted">No payouts yet.</p>
