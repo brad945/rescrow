@@ -1,0 +1,84 @@
+// @vitest-environment node
+//
+// "Only one door out of trust", checked against the source rather than by
+// convention. Every line in src/ that writes a hold's status, a payout, the
+// gallery's operating balance or a sale/artwork/gallery status is listed here
+// with the function it lives in. A new write anywhere (a page, a route, a new
+// engine helper) fails this test until someone adds it to the manifest below,
+// which makes every new way of moving money a reviewed, visible change.
+import fs from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const SRC = path.resolve(__dirname, "../..");
+
+const WRITE =
+  /(\.status\s*=(?!=)|payouts\.push\(|operatingBalanceCents\s*[-+]?=(?!=)|\.claimedByCreditorsCents\s*=(?!=)|holds\.push\(|\.amountCents\s*[-+]?=(?!=))/;
+
+function files(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) return files(p);
+    return /\.(ts|tsx)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)
+      ? [p]
+      : [];
+  });
+}
+
+function writes(): string[] {
+  const out: string[] = [];
+  for (const file of files(SRC)) {
+    const lines = fs.readFileSync(file, "utf8").split("\n");
+    let fn = "(top level)";
+    lines.forEach((line) => {
+      const m = line.match(/^(?:export )?(?:async )?function (\w+)/);
+      if (m) fn = m[1];
+      if (WRITE.test(line) && !line.trim().startsWith("//")) {
+        const rel = path.relative(SRC, file);
+        out.push(`${rel} ${fn}: ${line.trim()}`);
+      }
+    });
+  }
+  return out.sort();
+}
+
+// The complete list of places that move money or change a money-bearing
+// status. Keep it short.
+const MANIFEST = [
+  // The only exit from trust: artist (paid) or buyer (refunded), nothing else.
+  'lib/escrow/engine.ts releaseTrust: live.status = to === "artist" ? "paid" : "refunded";',
+  // A payout is recorded only for holds releaseTrust just released.
+  "lib/escrow/engine.ts payOut: s.payouts.push({",
+  // Money in: the gallery's part of a payment, the artist's part into a new hold.
+  "lib/escrow/engine.ts receivePayment: gallery.operatingBalanceCents += amount - artistShare;",
+  "lib/escrow/engine.ts receivePayment: s.holds.push(hold);",
+  'lib/escrow/engine.ts receivePayment: sale.status = "paid";',
+  'lib/escrow/engine.ts createSale: artwork.status = "sold";',
+  // Failure: creditors take operating, never trust.
+  "lib/escrow/engine.ts declareInsolvency: gallery.claimedByCreditorsCents =",
+  "lib/escrow/engine.ts declareInsolvency: gallery.operatingBalanceCents = 0;",
+  'lib/escrow/engine.ts declareInsolvency: gallery.status = "insolvent";',
+  // Cancel: the gallery refunds its own part from operating.
+  "lib/escrow/engine.ts cancelSale: gallery.operatingBalanceCents -= galleryPart;",
+  'lib/escrow/engine.ts cancelSale: sale.status = "cancelled";',
+  'lib/escrow/engine.ts cancelSale: artwork.status = "consigned";',
+];
+
+describe("architecture: every write that moves money is accounted for", () => {
+  it("matches the reviewed manifest exactly", () => {
+    expect(writes()).toEqual([...MANIFEST].sort());
+  });
+
+  it("no page, component or route writes money directly", () => {
+    const outsideLib = writes().filter((w) => !w.startsWith("lib/"));
+    expect(outsideLib).toEqual([]);
+  });
+
+  it("hold status changes happen in releaseTrust and nowhere else", () => {
+    const holdStatus = writes().filter((w) =>
+      /live\.status|hold\.status|h\.status/.test(w),
+    );
+    expect(holdStatus.every((w) => w.includes(" releaseTrust: "))).toBe(true);
+    expect(holdStatus).toHaveLength(1);
+  });
+});
