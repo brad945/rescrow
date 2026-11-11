@@ -60,7 +60,7 @@ export function GalleryBalances({
                 <Money cents={gallery.claimedByCreditorsCents ?? 0} />.
               </>
             ) : (
-              "What the gallery can spend on rent, payroll, and shows."
+              "The gallery's own cash and commission. None of it is owed to an artist."
             )}
           </p>
         </div>

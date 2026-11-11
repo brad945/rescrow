@@ -17,6 +17,7 @@ import {
   reduceRun,
   type AgentRun,
 } from "@/components/AgentPanel";
+import { shareOf } from "@/lib/money";
 import { AgreementText } from "@/components/AgreementText";
 import { ArtworkImage } from "@/components/ArtworkImage";
 import { GalleryBalances, Ledger } from "@/components/GalleryAccount";
@@ -383,7 +384,17 @@ function Phone({ snapshot }: { snapshot: Snapshot }) {
                       ))}
                     </div>
                     <p className="mt-1 text-[11px] text-muted">
-                      Buyer has paid <Money cents={received} />
+                      Buyer has paid <Money cents={received} /> of{" "}
+                      <Money cents={sale.priceCents} />
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-trust">
+                      Your {sale.artistShareBps / 100}%:{" "}
+                      <Money cents={shareOf(received, sale.artistShareBps)} />{" "}
+                      of{" "}
+                      <Money
+                        cents={shareOf(sale.priceCents, sale.artistShareBps)}
+                      />{" "}
+                      collected
                     </p>
                   </>
                 ) : (

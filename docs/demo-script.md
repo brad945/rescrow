@@ -37,7 +37,7 @@ Cut the wait in editing if the read takes longer than about 10 seconds.
 
 `→` Collector buys it:
 
-> A collector buys Orchard in Rain for twenty four thousand dollars, in three payments.
+> A collector buys Orchard in Rain for twenty four thousand dollars, in three payments. Half of that is Ines's. That's the twelve thousand Rescrow protects.
 
 `→` First wire:
 

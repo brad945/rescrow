@@ -1,5 +1,5 @@
 import type { Snapshot } from "@/types";
-import { formatCents } from "@/lib/money";
+import { formatCents, shareOf } from "@/lib/money";
 import { paidSoFar } from "@/lib/escrow/engine";
 
 // The scripted story: Ines Duarte consigns "Orchard in Rain", a collector buys
@@ -141,7 +141,7 @@ export function stepFor(s: Snapshot): Step {
     ),
   );
   const captions = [
-    `${BUYER} agreed to ${formatCents(sale.priceCents)} in three payments. Nothing has moved yet.`,
+    `${BUYER} agreed to ${formatCents(sale.priceCents)} in three payments. Ines's ${sale.artistShareBps / 100}% is ${formatCents(shareOf(sale.priceCents, sale.artistShareBps))}, and Rescrow holds her share of each payment the moment it lands.`,
     "The first wire arrived. Half went straight to the artist trust account, the other half to operating. The gallery can't spend Ines's half.",
     "Second payment, by ACH. Same split, same second it lands. Ines can see every dollar held for her on her phone.",
   ];
