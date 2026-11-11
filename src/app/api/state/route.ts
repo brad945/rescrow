@@ -13,9 +13,13 @@ export async function GET() {
   if (releaseDueHolds(current, clockFor(current)) === current) {
     return NextResponse.json(current);
   }
-  const { snapshot } = await mutate((latest) => ({
-    snapshot: releaseDueHolds(latest, clockFor(latest)),
-    result: null,
-  }));
+  // Not an undo step: going back past a due payout would only pay it again.
+  const { snapshot } = await mutate(
+    (latest) => ({
+      snapshot: releaseDueHolds(latest, clockFor(latest)),
+      result: null,
+    }),
+    { undoable: false },
+  );
   return NextResponse.json(snapshot);
 }

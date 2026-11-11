@@ -66,6 +66,16 @@ export default function PresentPage() {
     setRun(idleRun);
     void act("/api/demo/reset");
   }, [busy, act]);
+  // One step back (key ←): the title card, or the state before the last change.
+  const back = useCallback(() => {
+    if (busy || !step || onIntro) return;
+    if (step.index === 0) {
+      setIntro(true);
+      return;
+    }
+    if (step.index === 1) setRun(idleRun);
+    void act("/api/demo/undo");
+  }, [busy, step, onIntro, act]);
   const cancel = useCallback(() => {
     const sale = snapshot?.sales.filter((x) => x.artworkId === WORK).at(-1);
     if (step?.canCancel && sale && !busy)
@@ -95,6 +105,9 @@ export default function PresentPage() {
       if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") {
         e.preventDefault();
         next();
+      } else if (e.key === "ArrowLeft" || e.key === "Backspace") {
+        e.preventDefault();
+        back();
       } else if (e.key === "r" || e.key === "R") {
         reset();
       } else if (e.key === "c" || e.key === "C") {
@@ -111,7 +124,7 @@ export default function PresentPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, reset, cancel, fail, attempt, advance, redeliver]);
+  }, [next, back, reset, cancel, fail, attempt, advance, redeliver]);
 
   if (!snapshot || !step) {
     return (
@@ -146,6 +159,14 @@ export default function PresentPage() {
           <Link href="/gallery" className="hover:text-ink">
             Exit
           </Link>
+          <button
+            type="button"
+            onClick={back}
+            disabled={busy || onIntro}
+            className="rounded border border-line px-2 py-1 hover:text-ink disabled:opacity-40"
+          >
+            Back <kbd className="num text-faint">←</kbd>
+          </button>
           <button
             type="button"
             onClick={reset}

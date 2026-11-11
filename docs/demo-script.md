@@ -8,7 +8,7 @@ Target length: 2:30. Hard cap 3:00.
 2. Press `R` to reset. You should see the title card with the Stephen Friedman quote.
 3. Browser zoom 125%, window 1440 x 900 or larger, hide bookmarks bar, turn on Do Not Disturb.
 4. Record at 1080p with clicks shown (QuickTime or Screen Studio).
-5. Drive everything with the keyboard: `→` next step, `G` gallery tries to spend trust, `T` jump the demo clock 61 days, `D` the bank feed redelivers the last wire, `B` gallery goes under, `C` buyer cancels, `R` reset.
+5. Drive everything with the keyboard: `→` next step, `←` back one step (try another ending without resetting), `G` gallery tries to spend trust, `T` jump the demo clock 61 days, `D` the bank feed redelivers the last wire, `B` gallery goes under, `C` buyer cancels, `R` reset.
 6. Record the voice separately if the room is loud, then lay it over. Add captions; judges often watch muted.
 
 ## Script

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSale, receivePayment } from "@/lib/escrow/engine";
-import { load, mutate, reset, save } from "./store";
+import { clearHistory, load, mutate, reset, save, undo } from "./store";
 
 let dir: string;
 
@@ -82,5 +82,41 @@ describe("store", () => {
     ).rejects.toThrow("boom");
     const { result } = await mutate((s) => ({ snapshot: s, result: "ok" }));
     expect(result).toBe("ok");
+  });
+
+  it("undo restores the state before the last change", async () => {
+    const start = load();
+    await mutate((s) => {
+      s.galleries[0].name = "Changed";
+      return { snapshot: s, result: null };
+    });
+    expect(load().galleries[0].name).toBe("Changed");
+    const back = await undo();
+    expect(back?.galleries[0].name).toBe(start.galleries[0].name);
+    expect(load().galleries[0].name).toBe(start.galleries[0].name);
+    expect(await undo()).toBeNull();
+  });
+
+  it("a change that alters nothing, or is marked not undoable, is not an undo step", async () => {
+    load();
+    await mutate((s) => ({ snapshot: s, result: null }));
+    await mutate(
+      (s) => {
+        s.galleries[0].name = "Polled";
+        return { snapshot: s, result: null };
+      },
+      { undoable: false },
+    );
+    expect(await undo()).toBeNull();
+  });
+
+  it("clearHistory forgets earlier states", async () => {
+    load();
+    await mutate((s) => {
+      s.galleries[0].name = "Changed";
+      return { snapshot: s, result: null };
+    });
+    await clearHistory();
+    expect(await undo()).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
 import { createSeed } from "@/lib/seed";
-import { mutate } from "@/lib/store";
+import { clearHistory, mutate } from "@/lib/store";
 
 export async function POST() {
   try {
@@ -9,6 +9,7 @@ export async function POST() {
       snapshot: createSeed(new Date().toISOString()),
       result: null,
     }));
+    await clearHistory();
     return NextResponse.json(snapshot);
   } catch (err) {
     return errorResponse(err);

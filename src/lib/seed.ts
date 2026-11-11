@@ -40,7 +40,7 @@ This agreement is made between Lowline Gallery LLC, 214 Orchard Street, New York
 
 4. Payment. Proceeds owed to the Artist shall be paid no later than sixty (60) days following receipt by the Gallery. Where the buyer pays over time, this period runs from receipt of each payment.
 
-5. Trust. The Gallery acknowledges that the Artist's proceeds are trust property under New York Arts and Cultural Affairs Law section 12.01 and may not be used for Gallery operating expenses.
+5. Trust. The Gallery acknowledges that the Artist's proceeds are trust property under New York Arts and Cultural Affairs Law section 12.01 and may not be used for Gallery operating expenses. The Artist's share of each payment shall be moved to a separate artist trust account the moment the payment is received, and paid from that account only to the Artist, or back to the buyer if the sale is cancelled.
 
 6. Insurance and care. The Gallery insures the works at the Artist's share of retail value while they are in its possession.
 
@@ -100,7 +100,7 @@ export const SEED_NOW = "2026-11-09T16:41:12.000Z";
  * Bumped whenever the seed changes shape or content, so a data file written by
  * an older build is reseeded instead of loaded.
  */
-export const SEED_VERSION = 4;
+export const SEED_VERSION = 5;
 
 export function createSeed(now: string = SEED_NOW): Snapshot {
   const shift = Date.parse(now) - Date.parse(SEED_NOW);

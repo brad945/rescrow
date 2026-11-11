@@ -20,6 +20,7 @@ import { POST as pay } from "./demo/payment/route";
 import { POST as redeliver } from "./demo/redeliver/route";
 import { POST as reset } from "./demo/reset/route";
 import { POST as sell } from "./demo/sale/route";
+import { POST as undo } from "./demo/undo/route";
 import { GET as state } from "./state/route";
 
 const ROUTES: Record<string, (req: Request) => Promise<Response>> = {
@@ -32,6 +33,7 @@ const ROUTES: Record<string, (req: Request) => Promise<Response>> = {
   "/api/demo/attempt": attempt,
   "/api/demo/advance": advance,
   "/api/demo/redeliver": redeliver,
+  "/api/demo/undo": undo,
 };
 
 let dir: string;
@@ -313,5 +315,32 @@ describe("the recorded demo, end to end", () => {
     const { s } = await press(await call("/api/demo/reset"), 3);
     const polled = (await (await state()).json()) as Snapshot;
     expect(stepFor(polled).title).toBe(stepFor(s).title);
+  });
+
+  it("← after the buyer cancels goes back, and the other ending still works", async () => {
+    let { s } = await press(await call("/api/demo/reset"), 3);
+    const afterPayment = stepFor(s).title;
+    const sale = s.sales.filter((x) => x.artworkId === "wrk_orchard").at(-1)!;
+    s = await call("/api/demo/cancel", { saleId: sale.id });
+    expect(stepFor(s).index).toBe(6);
+
+    s = await call("/api/demo/undo");
+    expect(stepFor(s).title).toBe(afterPayment);
+    expect(s.refunds).toHaveLength(0);
+    balanced(s);
+
+    // Same point, different ending: the gallery goes under instead.
+    s = await call("/api/demo/insolvency", { galleryId: "gal_lowline" });
+    expect(stepFor(s).index).toBe(7);
+    balanced(s);
+  });
+
+  it("← walks back one change at a time, and stops at a reset", async () => {
+    const start = await call("/api/demo/reset");
+    let { s } = await press(start, 2);
+    s = await call("/api/demo/undo");
+    s = await call("/api/demo/undo");
+    expect(stepFor(s).title).toBe(stepFor(start).title);
+    await expect(call("/api/demo/undo")).rejects.toThrow(/400/);
   });
 });

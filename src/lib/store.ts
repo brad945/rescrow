@@ -75,13 +75,71 @@ let queue: Promise<unknown> = Promise.resolve();
 
 export function mutate<T>(
   change: (current: Snapshot) => { snapshot: Snapshot; result: T },
+  { undoable = true }: { undoable?: boolean } = {},
 ): Promise<{ snapshot: Snapshot; result: T }> {
-  const run = queue.then(() => {
-    const out = change(load());
+  return enqueue(() => {
+    const before = load();
+    const out = change(structuredClone(before));
+    if (undoable && JSON.stringify(out.snapshot) !== JSON.stringify(before)) {
+      pushHistory(before);
+    }
     save(out.snapshot);
     return out;
   });
+}
+
+function enqueue<T>(work: () => T): Promise<T> {
+  const run = queue.then(work);
   // Keep the queue moving even when a change throws; the caller still sees the error.
   queue = run.catch(() => undefined);
   return run;
+}
+
+// Undo for the presenter: the states before the last few changes, newest last.
+// Demo only; it restores whole snapshots, it never moves money itself.
+const HISTORY_LIMIT = 30;
+function historyPath(): string {
+  return path.join(dataDir(), "history.json");
+}
+
+function readHistory(): Snapshot[] {
+  const file = historyPath();
+  if (!fs.existsSync(file)) return [];
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (Array.isArray(parsed) && parsed.every(isSnapshot)) return parsed;
+    console.error(`[store] ${file} has the wrong shape; clearing undo history`);
+  } catch (err) {
+    console.error(`[store] could not read ${file}; clearing undo history`, err);
+  }
+  return [];
+}
+
+function writeHistory(history: Snapshot[]): void {
+  fs.mkdirSync(dataDir(), { recursive: true });
+  const file = historyPath();
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(history.slice(-HISTORY_LIMIT)));
+  fs.renameSync(tmp, file);
+}
+
+function pushHistory(snapshot: Snapshot): void {
+  writeHistory([...readHistory(), snapshot]);
+}
+
+/** Forgets every earlier state, so undo can't step back past a reset. */
+export function clearHistory(): Promise<void> {
+  return enqueue(() => writeHistory([]));
+}
+
+/** Restores the state before the last change. Null when there is nothing to undo. */
+export function undo(): Promise<Snapshot | null> {
+  return enqueue(() => {
+    const history = readHistory();
+    const previous = history.pop();
+    if (!previous) return null;
+    writeHistory(history);
+    save(previous);
+    return previous;
+  });
 }
